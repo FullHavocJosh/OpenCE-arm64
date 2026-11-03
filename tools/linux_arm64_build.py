@@ -102,6 +102,7 @@ def linux_arm64_host_build(n: Writer, host_table_c: Path) -> None:
     host_sources = [
         LINUX_ARM64_HOST / "host_linux_support.c",
         LINUX_ARM64_HOST / "host_linux_main.c",
+        LINUX_ARM64_HOST / "host_linux_data.c",
         *[
             ANDROID_HOST / name
             for name in (
@@ -124,7 +125,10 @@ def linux_arm64_host_build(n: Writer, host_table_c: Path) -> None:
     base_cflags = f"$linux_arm64_host_cflags -I{LINUX_DIR}/src"
     for source in [
         *host_sources,
-        *[LINUX_DIR / "src" / name for name in ("posix_files.c", "posix_net.c")],
+        *[
+            LINUX_DIR / "src" / name
+            for name in ("posix_files.c", "posix_net.c", "xiso.c")
+        ],
     ]:
         obj = obj_dir / (source.name + ".o")
         n.build(

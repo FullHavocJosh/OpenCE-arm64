@@ -31,6 +31,7 @@ file reads only debug.sample_seconds and debug.memory_watch from it.
 
 void host_install_signal_handlers(void);
 void host_linux_set_paths(const char *data, const char *save);
+int host_linux_offer_game_data(const char *destination);
 
 static char data_root[512];
 static char save_root[512];
@@ -214,6 +215,9 @@ int main(int argc, char **argv)
 	host_logf(HOST_LOG_INFO, "Halo for Linux starting");
 	host_install_signal_handlers();
 	resolve_roots(argc, argv);
+	/* the dialog needs the main thread */
+	if (!host_directory_has_maps(data_root))
+		host_linux_offer_game_data(data_root);
 	if (host_native_thread_create(game_main, NULL, MAIN_STACK_SIZE) != 0)
 		host_fatal("cannot start the game thread");
 	/* the game ends the process itself (host_exit) */

@@ -81,6 +81,13 @@ def test_host_target_on_linux_arm64(tmp_path, monkeypatch, machine):
     assert "-D_GNU_SOURCE" in text
     assert "build/linux-arm64/host/host_import_table.c" in text
     # the shared posix, UPnP and mbedTLS sources, and GLES and EGL
-    for part in ("posix_dtls.c.o", "mbedtls_", "miniupnpc_", "posix_files.c.o"):
+    for part in (
+        "posix_dtls.c.o",
+        "mbedtls_",
+        "miniupnpc_",
+        "posix_files.c.o",
+        "host_linux_data.c.o",
+        "xiso.c.o",
+    ):
         assert part in text
     assert "pkg-config --libs sdl3 glesv2 egl" in text
