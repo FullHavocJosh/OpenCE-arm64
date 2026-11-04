@@ -3,7 +3,8 @@
 
 x86_64 stages the 32-bit game (build/linux layout: halo, libSDL3.so.0,
 SDL3-LICENSE.txt); aarch64 stages halo_host, halo_guest.elf and the SDL
-libraries found beside them.
+libraries found beside them; armv7 (AppImage only) stages the 32-bit ARM halo
+and the SDL libraries found beside it.
 
     python tools/linux_package.py x86_64 build/linux out/AppDir
 """
@@ -28,6 +29,7 @@ ICON = ROOT / "port" / "assets" / "icon" / "opence-icon.png"
 APPRUN_HEAD = '#!/bin/sh\nHERE=$(dirname "$(readlink -f "$0")")\n'
 APPRUN = {
     "x86_64": APPRUN_HEAD + 'exec "$HERE/usr/bin/halo" "$@"\n',
+    "armv7": APPRUN_HEAD + 'exec "$HERE/usr/bin/halo" "$@"\n',
     "aarch64": APPRUN_HEAD
     + 'export LD_LIBRARY_PATH="$HERE/usr/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"\n'
     + 'export HALO_GUEST_ELF="$HERE/usr/bin/halo_guest.elf"\n'
@@ -55,11 +57,13 @@ def stage_appdir(arch, bin_dir, out):
     if arch == "x86_64":
         names = ["halo", "libSDL3.so.0", "SDL3-LICENSE.txt"]
     else:
-        names = ["halo_host", "halo_guest.elf"]
+        names = ["halo"] if arch == "armv7" else ["halo_host", "halo_guest.elf"]
         libs = sorted(p.name for p in bin_dir.glob("libSDL3.so*"))
         if not libs:
             raise SystemExit(f"missing input file: {bin_dir / 'libSDL3.so*'}")
         names += libs
+        if arch == "armv7" and (bin_dir / "SDL3-LICENSE.txt").is_file():
+            names.append("SDL3-LICENSE.txt")
     for name in names:
         copy(bin_dir / name, dest / name)
     for name in ("halo", "halo_host"):
@@ -83,10 +87,16 @@ def stage_appdir(arch, bin_dir, out):
     return out
 
 
-def pack_appimage(arch, appdir, output, appimagetool):
+APPIMAGE_ARCH = {"x86_64": "x86_64", "aarch64": "aarch64", "armv7": "armhf"}
+
+
+def pack_appimage(arch, appdir, output, appimagetool, runtime_file=None):
     # The AppImage runtime is x86_64, so the 32-bit x86 game is packed with ARCH=x86_64.
-    env = dict(os.environ, ARCH=arch)
-    subprocess.run([appimagetool, "--appimage-extract-and-run", str(appdir), str(output)], env=env, check=True)
+    env = dict(os.environ, ARCH=APPIMAGE_ARCH[arch])
+    cmd = [appimagetool, "--appimage-extract-and-run"]
+    if runtime_file is not None:
+        cmd += ["--runtime-file", str(runtime_file)]
+    subprocess.run(cmd + [str(appdir), str(output)], env=env, check=True)
     return Path(output)
 
 
@@ -213,7 +223,7 @@ def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     if argv and argv[0] == "flatpak":
         parser = argparse.ArgumentParser(prog="linux_package.py flatpak")
-        parser.add_argument("--arch", required=True, choices=sorted(APPRUN))
+        parser.add_argument("--arch", required=True, choices=sorted(FLATPAK_ARCH))
         parser.add_argument("--bin-dir", required=True, help="directory holding the built files")
         parser.add_argument("--out", required=True, help="Flatpak bundle to write")
         args = parser.parse_args(argv[1:])
@@ -227,10 +237,11 @@ def main(argv=None):
         parser.add_argument("--bin-dir", required=True, help="directory holding the built files")
         parser.add_argument("--out", required=True, help="AppImage file to write")
         parser.add_argument("--appimagetool", default="appimagetool")
+        parser.add_argument("--runtime-file", default=None, help="AppImage runtime to embed")
         args = parser.parse_args(argv[1:])
         with tempfile.TemporaryDirectory() as tmp:
             appdir = stage_appdir(args.arch, args.bin_dir, Path(tmp) / "AppDir")
-            pack_appimage(args.arch, appdir, args.out, args.appimagetool)
+            pack_appimage(args.arch, appdir, args.out, args.appimagetool, args.runtime_file)
         return 0
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("arch", choices=sorted(APPRUN))

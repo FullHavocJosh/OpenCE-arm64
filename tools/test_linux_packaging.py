@@ -76,6 +76,36 @@ def test_pack_appimage(tmp_path, monkeypatch):
     assert kwargs["check"] is True
 
 
+def test_appdir_armv7(tmp_path):
+    out = _stage("armv7", ["halo", "libSDL3.so.0", "libSDL3.so"], tmp_path)
+    for name in ("halo", "libSDL3.so.0", "libSDL3.so"):
+        assert (out / "usr/bin" / name).is_file()
+    _check_common(out)
+    apprun = (out / "AppRun").read_text()
+    assert apprun.startswith("#!/bin/sh\n")
+    assert 'exec "$HERE/usr/bin/halo" "$@"' in apprun
+
+
+def test_pack_appimage_armv7(tmp_path, monkeypatch):
+    import linux_package
+
+    calls = []
+    monkeypatch.setattr(linux_package.subprocess, "run", lambda cmd, **kw: calls.append((cmd, kw)))
+    runtime = tmp_path / "runtime-armv7"
+    linux_package.pack_appimage(
+        "armv7", tmp_path / "AppDir", tmp_path / "out.AppImage", "appimagetool", runtime_file=runtime
+    )
+    cmd, kwargs = calls[0]
+    assert kwargs["env"]["ARCH"] == "armhf"
+    assert cmd[cmd.index("--runtime-file") + 1] == str(runtime)
+    assert cmd[-2:] == [str(tmp_path / "AppDir"), str(tmp_path / "out.AppImage")]
+
+
+def test_flatpak_rejects_armv7(tmp_path):
+    with pytest.raises(SystemExit):
+        _manifest("armv7", ["halo", "libSDL3.so.0"], tmp_path)
+
+
 def test_appdir_aarch64(tmp_path):
     out = _stage("aarch64", ["halo_host", "halo_guest.elf", "libSDL3.so.0", "libSDL3.so"], tmp_path)
     for name in ("halo_host", "halo_guest.elf", "libSDL3.so.0", "libSDL3.so"):
@@ -157,7 +187,8 @@ def test_pack_flatpak(tmp_path, monkeypatch):
 def test_workflow_builds():
     text = (ROOT / ".github" / "workflows" / "linux-packages.yml").read_text()
     for needle in ("ubuntu-24.04-arm", "release-3.4.16", "bin-x86_64",
-                   "bin-aarch64", "ninja linux_arm64_guest linux_arm64_host"):
+                   "bin-aarch64", "ninja linux_arm64_guest linux_arm64_host",
+                   "build-armv7", "bin-armv7", "linux_armv7"):
         assert needle in text
 
 
@@ -165,7 +196,9 @@ def test_workflow_packages():
     path = ROOT / ".github" / "workflows" / "linux-packages.yml"
     text = path.read_text()
     for needle in ("package-x86_64", "package-aarch64", "appimagetool",
-                   "flatpak-builder", "tools/linux_package.py"):
+                   "flatpak-builder", "tools/linux_package.py",
+                   "package-armv7", "packages-armv7", "OpenCE-armv7.AppImage",
+                   "runtime-armhf"):
         assert needle in text
     yaml = pytest.importorskip("yaml")
     assert "jobs" in yaml.safe_load(text)

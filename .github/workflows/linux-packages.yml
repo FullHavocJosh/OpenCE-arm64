@@ -57,6 +57,44 @@ jobs:
           name: bin-aarch64
           path: bin
 
+  build-armv7:
+    # The 32-bit ARM (armhf) game, cross-compiled with clang and lld against a
+    # Debian armhf root. Needs the armv7 build target (configure.py --linux-arch).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Install the toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld llvm ninja-build cmake pkg-config python3 curl git debootstrap qemu-user-static binfmt-support
+      - uses: actions/checkout@v4
+      - name: Make an armhf root
+        run: |
+          sudo debootstrap --foreign --arch=armhf --variant=minbase trixie "$RUNNER_TEMP/armhf" http://deb.debian.org/debian
+          sudo cp /usr/bin/qemu-arm-static "$RUNNER_TEMP/armhf/usr/bin/"
+          sudo chroot "$RUNNER_TEMP/armhf" /debootstrap/debootstrap --second-stage
+          sudo chroot "$RUNNER_TEMP/armhf" apt-get install -y --no-install-recommends libc6-dev libgcc-14-dev linux-libc-dev libgles-dev libegl-dev libgl-dev libx11-dev libxext-dev libxi-dev libxcursor-dev libxrandr-dev libxtst-dev libxss-dev libxkbcommon-dev libwayland-dev libdrm-dev libgbm-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev libffi-dev
+      - name: Build SDL 3
+        run: |
+          git clone --depth 1 --branch release-3.4.16 https://github.com/libsdl-org/SDL.git "$RUNNER_TEMP/SDL"
+          cmake -S "$RUNNER_TEMP/SDL" -B "$RUNNER_TEMP/SDL/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="$GITHUB_WORKSPACE/tools/linux_armv7.cmake" -DHALO_SYSROOT="$RUNNER_TEMP/armhf" -DCMAKE_C_COMPILER=clang -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/armhf/usr" -DCMAKE_INSTALL_LIBDIR=lib/arm-linux-gnueabihf
+          cmake --build "$RUNNER_TEMP/SDL/build" -j"$(nproc)"
+          sudo cmake --install "$RUNNER_TEMP/SDL/build"
+      - name: Build the game
+        run: |
+          python3 configure.py --linux-arch armv7 --linux-sysroot "$RUNNER_TEMP/armhf" --lto=off --pgo=off
+          ninja linux_armv7
+      - name: Collect the binaries
+        run: |
+          mkdir bin
+          cp build/linux-armv7/halo bin/
+          cp -a "$RUNNER_TEMP"/armhf/usr/lib/arm-linux-gnueabihf/libSDL3.so* bin/
+          if [ -f "$RUNNER_TEMP/SDL/LICENSE.txt" ]; then cp "$RUNNER_TEMP/SDL/LICENSE.txt" bin/SDL3-LICENSE.txt; fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-armv7
+          path: bin
+
   package-x86_64:
     runs-on: ubuntu-24.04
     needs: build-x86_64
@@ -122,3 +160,26 @@ jobs:
           path: |
             OpenCE-aarch64.AppImage
             OpenCE-aarch64.flatpak
+
+  # No armv7 Flatpak: the freedesktop 25.08 runtime has no 32-bit ARM arch.
+  package-armv7:
+    runs-on: ubuntu-24.04
+    needs: build-armv7
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bin-armv7
+          path: bin
+      - name: Download appimagetool and the armhf runtime
+        run: |
+          curl -fsSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          curl -fsSL -o runtime-armhf https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-armhf
+          chmod +x appimagetool
+      - name: Pack the AppImage
+        run: python3 tools/linux_package.py appimage --arch armv7 --bin-dir bin --out OpenCE-armv7.AppImage --appimagetool ./appimagetool --runtime-file ./runtime-armhf
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-armv7
+          path: OpenCE-armv7.AppImage

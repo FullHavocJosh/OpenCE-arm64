@@ -351,8 +351,9 @@ unsigned int _clearfp(void)
 	__builtin_arm_wsr64("fpsr", __builtin_arm_rsr64("fpsr") & ~0x9fULL);
 	return status;
 }
-#elif defined(HALO_WEB)
-/* WebAssembly: rounding to nearest and no exception flags, always. The MSVC
+#elif defined(HALO_WEB) || defined(__arm__)
+/* WebAssembly and 32-bit ARM: rounding to nearest and no exception flags, as
+far as the game can tell (armv7 does not set the VFP modes). The MSVC
 control word is only remembered, so that the game reads back what it set. */
 static unsigned int msvc_control_word = CW_DEFAULT;
 
@@ -742,3 +743,12 @@ long _lseek(int handle, long offset, int origin)
 {
 	return (long)lseek(handle, offset, origin);
 }
+
+#ifdef __arm__
+/* MSVC (scenario.c): a compiler barrier; clang does not make the intrinsic
+for 32-bit ARM Linux */
+void _ReadWriteBarrier(void)
+{
+	__atomic_signal_fence(__ATOMIC_SEQ_CST);
+}
+#endif

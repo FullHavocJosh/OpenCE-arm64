@@ -947,6 +947,7 @@ static struct sigaction previous_segv, previous_bus, previous_ill;
 
 static void report_crash(int signal_number, siginfo_t *information, void *context)
 {
+#if defined(__aarch64__)
 	ucontext_t *ucontext = context;
 	const struct sigcontext *registers = (const struct sigcontext *)&ucontext->uc_mcontext;
 	uint64_t pc = registers->pc, lr = registers->regs[30];
@@ -980,6 +981,10 @@ static void report_crash(int signal_number, siginfo_t *information, void *contex
 			fp = frame[0];
 		}
 	}
+#else
+	(void)context;
+	host_logf(HOST_LOG_ERROR, "signal %d at address %p", signal_number, information->si_addr);
+#endif
 }
 
 static void chain(struct sigaction *previous, int signal_number, siginfo_t *information, void *context)
