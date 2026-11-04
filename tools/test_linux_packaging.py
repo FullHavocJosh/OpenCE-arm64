@@ -58,6 +58,8 @@ def test_appdir_x86_64(tmp_path):
     apprun = (out / "AppRun").read_text()
     assert apprun.startswith("#!/bin/sh\n")
     assert 'exec "$HERE/usr/bin/halo" "$@"' in apprun
+    assert "HALO_DATA_ROOT" in apprun
+    assert "HALO_CONFIG_FILE" in apprun
 
 
 def test_pack_appimage(tmp_path, monkeypatch):
@@ -148,7 +150,10 @@ def test_flatpak_manifest_x86_64(tmp_path):
     paths = [s["path"] for s in module["sources"]]
     for name in ("halo", "libSDL3.so.0", "SDL3-LICENSE.txt"):
         assert name in paths
-    assert "exec /app/bin/halo " in "\n".join(module["build-commands"])
+    commands = "\n".join(module["build-commands"])
+    assert "exec /app/bin/halo " in commands
+    assert "mkdir -p /app/lib/i386-linux-gnu/GL" in commands
+    assert "HALO_CONFIG_FILE" in commands
     ext = manifest["add-extensions"]
     assert ext["org.freedesktop.Platform.Compat.i386"]["directory"] == "lib/i386-linux-gnu"
     assert ext["org.freedesktop.Platform.GL32"]["directory"] == "lib/i386-linux-gnu/GL"
