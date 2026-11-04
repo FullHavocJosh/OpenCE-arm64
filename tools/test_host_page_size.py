@@ -2,6 +2,7 @@
 port/android/host/host_memory.c) with the build machine's C compiler.
 host_memory.c is Linux code (mmap, ucontext, /proc), so the test is skipped
 off Linux."""
+
 import shutil
 import subprocess
 import sys
@@ -28,14 +29,25 @@ def test_host_page_size(tmp_path):
         pytest.skip("no C compiler")
     binary = tmp_path / "host_page_size_test"
     subprocess.run(
-        [cc, "-std=gnu11", "-D_GNU_SOURCE", "-Wall", "-Wextra", "-Werror", "-O1",
-         "-Iport/guest/include", "-Iport/android/host",
-         "port/android/tests/host_page_size_test.c",
-         "port/android/host/host_memory.c",
-         "port/android/host/host_watch_hash.c",
-         "-lpthread",
-         "-o", str(binary)],
-        check=True, cwd=ROOT,
+        [
+            cc,
+            "-std=gnu11",
+            "-D_GNU_SOURCE",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-O1",
+            "-Iport/guest/include",
+            "-Iport/android/host",
+            "port/android/tests/host_page_size_test.c",
+            "port/android/host/host_memory.c",
+            "port/android/host/host_watch_hash.c",
+            "-lpthread",
+            "-o",
+            str(binary),
+        ],
+        check=True,
+        cwd=ROOT,
     )
-    result = subprocess.run([str(binary)], capture_output=True, text=True)
+    result = subprocess.run([str(binary)], check=False, capture_output=True, text=True)
     assert result.returncode == 0, result.stdout + result.stderr

@@ -50,6 +50,7 @@ def _run(data_root, image):
     environment["HALO_GUEST_ELF"] = str(image)
     result = subprocess.run(
         [str(HOST)],
+        check=False,
         cwd=data_root,
         env=environment,
         stdin=subprocess.DEVNULL,
