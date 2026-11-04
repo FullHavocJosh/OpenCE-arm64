@@ -45,6 +45,7 @@ def _stage(arch, names, tmp_path):
 
 
 def _check_common(out):
+    assert 'HALO_UPDATE_AUTO="${HALO_UPDATE_AUTO:-false}"' in (out / "AppRun").read_text()
     assert (out / (APP_ID + ".png")).is_file()
     assert (out / "usr/share/icons/hicolor/512x512/apps" / (APP_ID + ".png")).is_file()
     assert (out / "usr/share/metainfo" / (APP_ID + ".metainfo.xml")).is_file()
@@ -136,6 +137,8 @@ def _manifest(arch, names, tmp_path):
 
 
 def _check_flatpak_common(manifest):
+    commands = "\n".join(manifest["modules"][0]["build-commands"])
+    assert 'HALO_UPDATE_AUTO="${HALO_UPDATE_AUTO:-false}"' in commands
     assert manifest["app-id"] == APP_ID
     assert manifest["runtime"] == "org.freedesktop.Platform"
     assert manifest["runtime-version"] == "25.08"
