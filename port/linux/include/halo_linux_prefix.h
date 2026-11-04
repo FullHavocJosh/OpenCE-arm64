@@ -10,8 +10,13 @@ byte-for-byte identical to what the matching MSVC build compiles.
 #ifndef __HALO_LINUX_PREFIX_H
 #define __HALO_LINUX_PREFIX_H
 
-#if !defined(__i386__) && !defined(HALO_ARM64_GUEST) && !defined(__wasm32__)
+/* port: HALO_MACOS_LP64 */
+#if !defined(__i386__) && !defined(HALO_ARM64_GUEST) && !defined(__wasm32__) && !defined(HALO_MACOS_LP64)
 #error the Linux port targets 32-bit x86: game data structures assume 32-bit pointers
+#endif
+
+#ifdef HALO_MACOS_LP64
+typedef long long __int64;
 #endif
 
 /* ---------- WebAssembly: no return addresses
@@ -27,6 +32,8 @@ anyway, so it is 0 there. */
 #endif
 
 /* ---------- XDK architecture selection (MSVC predefines these) */
+
+/* port: LP64 macOS keeps the x86 XDK selection; the structures are fixed per layout assertion */
 
 #define _X86_ 1
 #define _M_IX86 600
