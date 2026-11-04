@@ -743,3 +743,12 @@ long _lseek(int handle, long offset, int origin)
 {
 	return (long)lseek(handle, offset, origin);
 }
+
+#ifdef __arm__
+/* MSVC (scenario.c): a compiler barrier; clang does not make the intrinsic
+for 32-bit ARM Linux */
+void _ReadWriteBarrier(void)
+{
+	__atomic_signal_fence(__ATOMIC_SEQ_CST);
+}
+#endif
