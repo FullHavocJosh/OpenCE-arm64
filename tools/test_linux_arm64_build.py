@@ -79,6 +79,7 @@ def test_host_target_on_linux_arm64(tmp_path, monkeypatch, machine):
     assert "pkg-config --libs sdl3" in text
     # glibc declares gettid only with _GNU_SOURCE
     assert "-D_GNU_SOURCE" in text
+    assert "-DHALO_LINUX_ARM64_HOST" in text
     assert "build/linux-arm64/host/host_import_table.c" in text
     # the shared posix, UPnP and mbedTLS sources, and GLES and EGL
     for part in (

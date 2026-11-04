@@ -86,6 +86,7 @@ def linux_arm64_host_build(n: Writer, host_table_c: Path) -> None:
                 "-O2",
                 "-std=gnu11",
                 "-D_GNU_SOURCE",
+                "-DHALO_LINUX_ARM64_HOST",
                 f"-I{GUEST_DIR}/include",
                 f"-I{ANDROID_HOST}",
                 f"-I{TOML_DIR}",
