@@ -73,7 +73,7 @@ jobs:
           sudo debootstrap --foreign --arch=armhf --variant=minbase trixie "$RUNNER_TEMP/armhf" http://deb.debian.org/debian
           sudo cp /usr/bin/qemu-arm-static "$RUNNER_TEMP/armhf/usr/bin/"
           sudo chroot "$RUNNER_TEMP/armhf" /debootstrap/debootstrap --second-stage
-          sudo chroot "$RUNNER_TEMP/armhf" apt-get install -y --no-install-recommends libc6-dev libgcc-14-dev linux-libc-dev libgles-dev libegl-dev libgl-dev libx11-dev libxext-dev libxi-dev libxcursor-dev libxrandr-dev libxss-dev libxkbcommon-dev libwayland-dev libdrm-dev libgbm-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev libffi-dev
+          sudo chroot "$RUNNER_TEMP/armhf" apt-get install -y --no-install-recommends libc6-dev libgcc-14-dev linux-libc-dev libgles-dev libegl-dev libgl-dev libx11-dev libxext-dev libxi-dev libxcursor-dev libxrandr-dev libxtst-dev libxss-dev libxkbcommon-dev libwayland-dev libdrm-dev libgbm-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev libffi-dev
       - name: Build SDL 3
         run: |
           git clone --depth 1 --branch release-3.4.16 https://github.com/libsdl-org/SDL.git "$RUNNER_TEMP/SDL"
