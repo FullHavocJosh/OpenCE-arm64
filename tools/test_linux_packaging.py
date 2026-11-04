@@ -23,6 +23,10 @@ def test_metadata():
     assert launchable.get("type") == "desktop-id"
     assert launchable.text == APP_ID + ".desktop"
 
+    # (appimagetool validates these with appstreamcli, which fails the build)
+    for attribute in component.iter("content_attribute"):
+        assert attribute.text in ("none", "mild", "moderate", "intense"), attribute.get("id")
+
     lines = (PACKAGING / "opence.desktop").read_text().splitlines()
     assert "Exec=opence" in lines
     assert "Icon=" + APP_ID in lines
