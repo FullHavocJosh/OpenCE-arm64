@@ -103,6 +103,11 @@ parser.add_argument(
     help="clang with the arm64_32 target for the Android guest (default: clang)",
 )
 parser.add_argument(
+    "--guest-cc",
+    type=str,
+    help="clang for the native Linux arm64 guest (default: --android-guest-cc, else clang)",
+)
+parser.add_argument(
     "--web-emcc",
     type=str,
     help="Emscripten's emcc for `ninja web` (default: emcc on the PATH, then EMSDK's or ~/emsdk's)",
@@ -158,6 +163,7 @@ sln = SimpleNamespace(
     port_pgo_profile=args.pgo_profile,
     android_ndk=args.android_ndk,
     android_guest_cc=args.android_guest_cc,
+    guest_cc=args.guest_cc,
     web_emcc=args.web_emcc,
     guest_lld_bin=args.guest_lld_bin,
 )

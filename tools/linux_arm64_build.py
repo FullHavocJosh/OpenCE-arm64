@@ -21,8 +21,8 @@ from .guest_build import (
     fetch_musl,
     fetch_sdl,
     generate_guest,
+    host_network_objects,
 )
-from .linux_build import MINIUPNPC_DEFINES, MINIUPNPC_DIR, miniupnpc_sources
 from .ninja_syntax import Writer
 
 BUILD = Path("build/linux-arm64")
@@ -30,7 +30,6 @@ THIRD_PARTY = BUILD / "third_party"
 GL_HEADERS_DIR = THIRD_PARTY / "gl-headers"
 # the TOML parser config.toml is read with, as for the Android host
 TOML_DIR = Path("port/third_party/tomlc17")
-MBEDTLS_DIR = Path("port/third_party/mbedtls")
 LINUX_ARM64_HOST = Path("port/linux-arm64") / "host"
 ANDROID_HOST = Path("port/android") / "host"
 GUEST_DIR = Path("port/guest")
@@ -86,6 +85,8 @@ def linux_arm64_host_build(n: Writer, host_table_c: Path) -> None:
                 "-O2",
                 "-std=gnu11",
                 "-D_GNU_SOURCE",
+                # a non-PIE host's heap can cover the Custom Edition window at 0x40440000
+                "-fPIE",
                 "-DHALO_LINUX_ARM64_HOST",
                 f"-I{GUEST_DIR}/include",
                 f"-I{ANDROID_HOST}",
@@ -97,8 +98,10 @@ def linux_arm64_host_build(n: Writer, host_table_c: Path) -> None:
     obj_dir = BUILD / "host" / "obj"
     n.rule(
         name="linux_arm64_host_cc",
-        command="$linux_arm64_host_cc $cflags -c $in -o $out",
+        command="$linux_arm64_host_cc -MMD -MF $out.d $cflags -c $in -o $out",
         description="LINUX ARM64 HOST CC $out",
+        depfile="$out.d",
+        deps="gcc",
     )
     host_sources = [
         LINUX_ARM64_HOST / "host_linux_support.c",
@@ -139,53 +142,11 @@ def linux_arm64_host_build(n: Writer, host_table_c: Path) -> None:
             variables={"cflags": base_cflags},
         )
         host_objects.append(obj)
-    # internet play's UPnP (posix_upnp.c, with port/third_party/miniupnpc)
-    miniupnpc_cflags = " ".join(
-        [
-            base_cflags,
-            f"-I{MINIUPNPC_DIR / 'include'}",
-            f"-I{MINIUPNPC_DIR / 'src'}",
-            *MINIUPNPC_DEFINES,
-        ]
-    )
-    for source in [LINUX_DIR / "src" / "posix_upnp.c", *miniupnpc_sources()]:
-        is_library = source.parent.parent == MINIUPNPC_DIR
-        obj = obj_dir / (("miniupnpc_" if is_library else "") + source.name + ".o")
-        n.build(
-            outputs=obj,
-            rule="linux_arm64_host_cc",
-            inputs=source,
-            variables={"cflags": miniupnpc_cflags + (" -w" if is_library else "")},
-        )
-        host_objects.append(obj)
-    # internet play's DTLS (posix_dtls.c) and the master servers' requests
-    # (posix_update.c), with port/third_party/mbedtls
-    mbedtls_cflags = " ".join(
-        [
-            base_cflags,
-            f"-I{MBEDTLS_DIR / 'include'}",
-            f"-I{MBEDTLS_DIR / 'library'}",
-            "-DMBEDTLS_THREADING_C",
-            "-DMBEDTLS_THREADING_PTHREAD",
-        ]
-    )
-    for source in [
-        LINUX_DIR / "src" / "posix_dtls.c",
-        LINUX_DIR / "src" / "posix_update.c",
-        *sorted((MBEDTLS_DIR / "library").glob("*.c")),
-    ]:
-        is_library = source.parent.parent == MBEDTLS_DIR
-        obj = obj_dir / (("mbedtls_" if is_library else "") + source.name + ".o")
-        n.build(
-            outputs=obj,
-            rule="linux_arm64_host_cc",
-            inputs=source,
-            variables={"cflags": mbedtls_cflags + (" -w" if is_library else "")},
-        )
-        host_objects.append(obj)
+    # internet play's UPnP and DTLS (with port/third_party/miniupnpc and mbedtls)
+    host_objects += host_network_objects(n, "linux_arm64_host_cc", obj_dir, base_cflags)
     n.rule(
         name="linux_arm64_host_link",
-        command="$linux_arm64_host_cc $in -o $out $$(pkg-config --libs sdl3 glesv2 egl) -lm -lpthread -ldl",
+        command="$linux_arm64_host_cc $in -o $out -pie $$(pkg-config --libs sdl3 glesv2 egl) -lm -lpthread -ldl",
         description="LINUX ARM64 HOST LINK $out",
     )
     n.build(
@@ -205,6 +166,10 @@ def generate_linux_arm64_build(n: Writer, sln: Any) -> None:
         return
     config_path = LINUX_DIR / "port.json"
     if not config_path.is_file():
+        print(
+            "Native Linux arm64 build disabled: the port configuration was not found",
+            file=sys.stderr,
+        )
         return
     try:
         THIRD_PARTY.mkdir(parents=True, exist_ok=True)
@@ -219,7 +184,11 @@ def generate_linux_arm64_build(n: Writer, sln: Any) -> None:
         return
     config: dict[str, Any] = json.loads(config_path.read_text(encoding="utf-8"))
 
-    guest_cc = getattr(sln, "android_guest_cc", None) or "clang"
+    guest_cc = (
+        getattr(sln, "guest_cc", None)
+        or getattr(sln, "android_guest_cc", None)
+        or "clang"
+    )
     n.comment("Native Linux arm64 guest build (ninja linux_arm64_guest)")
     n.variable("linux_arm64_guest_cc", guest_cc)
 

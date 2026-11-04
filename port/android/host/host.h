@@ -1,13 +1,14 @@
 /*
 HOST.H
 
-Internals of the Android port's host library (libmain.so). See
-port/android/README.md for the overall design and
-port/guest/include/halo_guest_abi.h for the guest contract.
+Internals of the host library: libmain.so on Android,
+halo_host on Linux arm64 (port/linux-arm64). See port/android/README.md
+for the overall design and port/guest/include/halo_guest_abi.h for the
+guest contract.
 */
 
-#ifndef __HALO_ANDROID_HOST_H
-#define __HALO_ANDROID_HOST_H
+#ifndef __HALO_HOST_H
+#define __HALO_HOST_H
 
 #include <stdarg.h>
 #include <stddef.h>

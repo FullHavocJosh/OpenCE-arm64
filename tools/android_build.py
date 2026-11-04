@@ -32,8 +32,8 @@ from .guest_build import (
     fetch_musl,
     fetch_sdl,
     generate_guest,
+    host_network_objects,
 )
-from .linux_build import MINIUPNPC_DEFINES, MINIUPNPC_DIR, miniupnpc_sources
 from .ninja_syntax import Writer
 
 PORT_DIR = Path("port/android")
@@ -43,8 +43,6 @@ BUILD = Path("build/android")
 THIRD_PARTY = BUILD / "third_party"
 # the TOML parser config.toml is read with (port/linux/src/port_config.c)
 TOML_DIR = Path("port/third_party/tomlc17")
-# internet play's DTLS with browsers (port/linux/src/posix_dtls.c, in the host)
-MBEDTLS_DIR = Path("port/third_party/mbedtls")
 MUSL_DIR = THIRD_PARTY / f"musl-{MUSL_VERSION}"
 SDL_DIR = THIRD_PARTY / "SDL3"
 SDL_ANDROID_MOUSE_PATCH = Path("port/android/patches/sdl-relative-mouse.patch")
@@ -213,29 +211,7 @@ def generate_android_build(n: Writer, sln: Any) -> None:
         host_objects.append(obj)
     # internet play's UPnP (posix_upnp.c, with port/third_party/miniupnpc),
     # as the other posix_*.c in the host
-    miniupnpc_cflags = " ".join([host_cflags, f"-I{MINIUPNPC_DIR / 'include'}", f"-I{MINIUPNPC_DIR / 'src'}",
-                                 *MINIUPNPC_DEFINES])
-    for source in [LINUX_DIR / "src" / "posix_upnp.c", *miniupnpc_sources()]:
-        obj = host_obj_dir / ("miniupnpc_" + source.name + ".o" if source.parent.parent == MINIUPNPC_DIR
-                              else source.name + ".o")
-        n.build(outputs=obj, rule="android_host_cc", inputs=source,
-                variables={"cflags": miniupnpc_cflags + (" -w" if source.name != "posix_upnp.c" else "")})
-        host_objects.append(obj)
-    # internet play's DTLS with browsers (posix_dtls.c, with
-    # port/third_party/mbedtls), as the other posix_*.c in the host
-    # (with its locks: internet play's thread and the server browser's master
-    # servers' both use it, as on Linux)
-    mbedtls_cflags = " ".join([host_cflags, f"-I{MBEDTLS_DIR / 'include'}", f"-I{MBEDTLS_DIR / 'library'}",
-                               "-DMBEDTLS_THREADING_C", "-DMBEDTLS_THREADING_PTHREAD"])
-    # (and the server browser's requests to the master servers: posix_update.c's,
-    # host_https.c)
-    for source in [LINUX_DIR / "src" / "posix_dtls.c", LINUX_DIR / "src" / "posix_update.c",
-                   *sorted((MBEDTLS_DIR / "library").glob("*.c"))]:
-        obj = host_obj_dir / ("mbedtls_" + source.name + ".o" if source.parent.parent == MBEDTLS_DIR
-                              else source.name + ".o")
-        n.build(outputs=obj, rule="android_host_cc", inputs=source,
-                variables={"cflags": mbedtls_cflags + (" -w" if source.parent.parent == MBEDTLS_DIR else "")})
-        host_objects.append(obj)
+    host_objects += host_network_objects(n, "android_host_cc", host_obj_dir, host_cflags)
     table_obj = host_obj_dir / "host_import_table.c.o"
     n.build(outputs=table_obj, rule="android_host_cc", inputs=host_table_c, variables={"cflags": host_cflags})
     host_objects.append(table_obj)

@@ -507,13 +507,15 @@ void host_memory_report_low_mappings(FILE *file)
 	__system_property_get("ro.product.model", model);
 	__system_property_get("dalvik.vm.heapsize", heap);
 	__system_property_get("ro.build.version.release", release);
-#else
-	const char *model = "unknown", *heap = "unknown", *release = "unknown";
 #endif
 	if (file)
 	{
+#ifdef __ANDROID__
 		fprintf(file, "device: %s, Android %s, Java heap %s\n", model[0] ? model : "unknown",
 			release[0] ? release : "unknown", heap[0] ? heap : "unknown");
+#else
+		fprintf(file, "device: not Android\n");
+#endif
 		fprintf(file, "why:\n%s\nmappings below 4 GB:\n", findings[0] ? findings : "(no reason recorded)\n");
 	}
 	if (!maps)

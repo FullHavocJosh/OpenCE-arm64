@@ -30,7 +30,7 @@ def in_the_repository(monkeypatch):
     monkeypatch.chdir(ROOT)
 
 
-def graph(tmp_path, monkeypatch, system, machine):
+def graph(tmp_path, monkeypatch, system, machine, guest_cc=None, android_guest_cc=None):
     """build.ninja's linux-arm64 part, as configure.py writes it on |system|"""
     monkeypatch.setattr(linux_arm64_build, "fetch_gl_headers", lambda: None)
     monkeypatch.setattr(linux_arm64_build, "fetch_musl", lambda third_party: None)
@@ -44,7 +44,11 @@ def graph(tmp_path, monkeypatch, system, machine):
     lld_bin.mkdir(exist_ok=True)
     (lld_bin / "ld.lld").touch()
     (lld_bin / "llvm-ar").touch()
-    sln = SimpleNamespace(guest_lld_bin=str(lld_bin), android_guest_cc=None)
+    sln = SimpleNamespace(
+        guest_lld_bin=str(lld_bin),
+        guest_cc=guest_cc,
+        android_guest_cc=android_guest_cc,
+    )
     out = io.StringIO()
     linux_arm64_build.generate_linux_arm64_build(ninja_syntax.Writer(out), sln)
     # long lines are wrapped with a "$\n" continuation; join them again
@@ -69,6 +73,18 @@ def test_no_host_target_off_linux_arm64(tmp_path, monkeypatch, system, machine):
     assert "halo_host" not in text
 
 
+def test_guest_cc_selects_the_compiler(tmp_path, monkeypatch):
+    text = graph(tmp_path, monkeypatch, "Linux", "x86_64", guest_cc="clang-22")
+    assert "linux_arm64_guest_cc = clang-22" in text
+
+
+def test_guest_cc_falls_back_to_android_guest_cc(tmp_path, monkeypatch):
+    # --guest-cc is the native Linux arm64 guest's; without it the Android
+    # guest's clang is used
+    text = graph(tmp_path, monkeypatch, "Linux", "x86_64", android_guest_cc="clang-21")
+    assert "linux_arm64_guest_cc = clang-21" in text
+
+
 @pytest.mark.parametrize("machine", ["aarch64", "arm64"])
 def test_host_target_on_linux_arm64(tmp_path, monkeypatch, machine):
     text = graph(tmp_path, monkeypatch, "Linux", machine)
@@ -80,6 +96,9 @@ def test_host_target_on_linux_arm64(tmp_path, monkeypatch, machine):
     # glibc declares gettid only with _GNU_SOURCE
     assert "-D_GNU_SOURCE" in text
     assert "-DHALO_LINUX_ARM64_HOST" in text
+    # a PIE puts the heap far above 4 GB, clear of the Custom Edition window
+    assert "-fPIE" in text
+    assert " -pie " in text
     assert "build/linux-arm64/host/host_import_table.c" in text
     # the shared posix, UPnP and mbedTLS sources, and GLES and EGL
     for part in (

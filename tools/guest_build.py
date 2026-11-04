@@ -18,6 +18,8 @@ from .linux_build import (
     EXPAT_SOURCES,
     KCP_DIR,
     LINUX_PROFILE,
+    MINIUPNPC_DEFINES,
+    MINIUPNPC_DIR,
     MONOCYPHER_DIR,
     MUSL_MATH_DIR,
     STB_VORBIS_SOURCE,
@@ -30,6 +32,7 @@ from .linux_build import (
     configuration_defines,
     game_defines_and_includes,
     game_sources,
+    miniupnpc_sources,
     musl_math_sources,
     opus_cflags,
     opus_sources,
@@ -43,6 +46,8 @@ from .ninja_syntax import Writer
 
 # the port's Linux side, whose sources the guest shares
 LINUX_DIR = Path("port/linux")
+# internet play's DTLS with browsers (port/linux/src/posix_dtls.c, in the host)
+MBEDTLS_DIR = Path("port/third_party/mbedtls")
 
 # The guest image's C library (port/third_party/musl) version, the
 # download's SHA-256, and the commit of the tag that was pinned
@@ -710,3 +715,21 @@ def generate_guest(
         implicit=[libguestc, linker_script],
     )
     return image, t.host_table_c
+
+
+def host_network_objects(n: Writer, rule: str, obj_dir: Path, host_cflags: str) -> list[Path]:
+    """Build internet play's UPnP and DTLS sources, with their libraries, with `rule` into obj_dir; the objects."""
+    miniupnpc_cflags = " ".join([host_cflags, f"-I{MINIUPNPC_DIR / 'include'}", f"-I{MINIUPNPC_DIR / 'src'}", *MINIUPNPC_DEFINES])
+    mbedtls_cflags = " ".join([host_cflags, f"-I{MBEDTLS_DIR / 'include'}", f"-I{MBEDTLS_DIR / 'library'}", "-DMBEDTLS_THREADING_C", "-DMBEDTLS_THREADING_PTHREAD"])
+    groups = [
+        (miniupnpc_cflags, MINIUPNPC_DIR, "miniupnpc_", [LINUX_DIR / "src" / "posix_upnp.c", *miniupnpc_sources()]),
+        (mbedtls_cflags, MBEDTLS_DIR, "mbedtls_", [LINUX_DIR / "src" / "posix_dtls.c", LINUX_DIR / "src" / "posix_update.c", *sorted((MBEDTLS_DIR / "library").glob("*.c"))]),
+    ]
+    objects = []
+    for cflags, library_dir, prefix, sources in groups:
+        for source in sources:
+            is_library = source.parent.parent == library_dir
+            obj = obj_dir / ((prefix if is_library else "") + source.name + ".o")
+            n.build(outputs=obj, rule=rule, inputs=source, variables={"cflags": cflags + (" -w" if is_library else "")})
+            objects.append(obj)
+    return objects
