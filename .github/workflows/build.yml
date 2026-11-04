@@ -62,16 +62,16 @@ jobs:
           pacman -Syu --noconfirm --needed git zstd python python-pytest python-pillow python-numpy python-scipy ninja ccache \
             clang lld gcc lib32-glibc lib32-gcc-libs cmake pkgconf wayland
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: .ccache
           key: ccache-linux-${{ github.sha }}
           restore-keys: ccache-linux-
 
       # the system root and SDL's source, which the build downloads
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: build/linux/third_party
           key: linux-third-party-${{ hashFiles('tools/linux_sysroot.py') }}
@@ -101,13 +101,13 @@ jobs:
       - name: Compile cache
         run: ccache --show-stats
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: halo-linux-debug
           path: dist/halo-linux-debug
           retention-days: 3
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: halo-linux-release
           path: dist/halo-linux-release
@@ -132,21 +132,21 @@ jobs:
           tar -xJf ccache.tar.xz -C "$RUNNER_TEMP/tools" --strip-components=1 ccache-4.10.2-linux-x86_64/ccache && rm ccache.tar.xz
           echo "$RUNNER_TEMP/tools" >> "$GITHUB_PATH"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: .ccache
           key: ccache-android-${{ github.sha }}
           restore-keys: ccache-android-
 
       # musl and SDL, which configure.py fetches
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: build/android/third_party
           key: android-third-party-${{ hashFiles('tools/android_build.py', 'port/android/patches/**') }}
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: |
             ~/.gradle/caches
@@ -186,13 +186,13 @@ jobs:
       - name: Compile cache
         run: ccache --show-stats
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: halo-android-debug
           path: dist/halo-android-debug
           retention-days: 3
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: halo-android-release
           path: dist/halo-android-release
@@ -209,7 +209,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang lld llvm ninja-build cmake pkg-config python3 python3-pytest python3-yaml curl git libwayland-dev libxkbcommon-dev wayland-protocols libx11-dev libxext-dev libxi-dev libxcursor-dev libxrandr-dev libxtst-dev libxss-dev libdrm-dev libgbm-dev libegl-dev libgles-dev libgl-dev libpulse-dev libasound2-dev libpipewire-0.3-dev libdecor-0-dev libudev-dev libdbus-1-dev
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build SDL 3
         run: |
@@ -238,7 +238,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang lld llvm ninja-build cmake pkg-config python3 python3-pytest python3-yaml curl git debootstrap qemu-user-static binfmt-support
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Make an armhf root
         run: |
@@ -285,16 +285,16 @@ jobs:
           Remove-Item ninja.zip, ccache.zip
           "$env:RUNNER_TEMP\tools" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: .ccache
           key: ccache-windows-${{ github.sha }}
           restore-keys: ccache-windows-
 
       # SDL's development package, which configure.py fetches
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: build/windows/third_party
           key: windows-third-party-${{ hashFiles('tools/windows_build.py') }}
@@ -311,26 +311,26 @@ jobs:
       - name: Compile cache
         run: ccache --show-stats
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: halo-windows-debug
           path: dist/halo-windows-debug
           retention-days: 3
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: halo-windows-release
           path: dist/halo-windows-release
           retention-days: 3
 
       # the PDBs, for crash reports' backtraces (tools/ci_build.py)
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: halo-windows-debug-symbols
           path: dist/halo-windows-debug-symbols
           retention-days: 3
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: halo-windows-release-symbols
           path: dist/halo-windows-release-symbols
@@ -347,9 +347,9 @@ jobs:
     env:
       EMSDK_VERSION: 6.0.10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: ~/emsdk
           key: emsdk-${{ env.EMSDK_VERSION }}-${{ hashFiles('port/web/halo_sdl3.py') }}
@@ -365,7 +365,7 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y -q ninja-build ccache python3-pytest mosquitto
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v5
         with:
           path: .ccache
           key: ccache-web-${{ github.sha }}
@@ -401,14 +401,14 @@ jobs:
       - name: Compile cache
         run: ccache --show-stats
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: halo-web-debug
           path: dist/halo-web-debug
           include-hidden-files: true
           retention-days: 3
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: halo-web-release
           path: dist/halo-web-release
@@ -444,7 +444,7 @@ jobs:
     steps:
       # (tools/ci_build.py and tools/release_sign.sh, the public key, and
       # halo_port_limits.h, whose network version the release's notes give)
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           sparse-checkout: |
             tools/ci_build.py
@@ -453,12 +453,12 @@ jobs:
             port/linux/include/halo_port_limits.h
           sparse-checkout-cone-mode: false
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: halo-*
           path: artifacts
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: packages-*
           path: packages
@@ -579,7 +579,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: halo-web-release
           path: site

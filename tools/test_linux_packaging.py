@@ -44,6 +44,7 @@ def _check_common(out):
     assert (out / (APP_ID + ".png")).is_file()
     assert (out / "usr/share/icons/hicolor/512x512/apps" / (APP_ID + ".png")).is_file()
     assert (out / "usr/share/metainfo" / (APP_ID + ".metainfo.xml")).is_file()
+    assert (out / "usr/share/metainfo" / (APP_ID + ".appdata.xml")).is_file()
     desktop = (out / (APP_ID + ".desktop")).read_text().splitlines()
     assert "Exec=AppRun" in desktop
     assert "Exec=opence" not in desktop
