@@ -2,6 +2,8 @@ name: Linux packages
 
 on:
   workflow_dispatch:
+  # (build.yml's packages job, for the release)
+  workflow_call:
   push:
     tags:
       - "v*"

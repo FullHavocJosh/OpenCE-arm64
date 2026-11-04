@@ -27,9 +27,16 @@ METAINFO = PACKAGING / (APP_ID + ".metainfo.xml")
 ICON = ROOT / "port" / "assets" / "icon" / "opence-icon.png"
 
 APPRUN_HEAD = '#!/bin/sh\nHERE=$(dirname "$(readlink -f "$0")")\n'
+# The AppImage mounts read-only: the settings and the game's data live in the
+# user's data folder, as the Flatpak's do.
+APPRUN_STATE = (
+    'export HALO_DATA_ROOT="${HALO_DATA_ROOT:-$HOME/.local/share/halo}"\n'
+    'export HALO_CONFIG_FILE="${HALO_CONFIG_FILE:-$HALO_DATA_ROOT/config.toml}"\n'
+    'mkdir -p "$HALO_DATA_ROOT"\n'
+)
 APPRUN = {
-    "x86_64": APPRUN_HEAD + 'exec "$HERE/usr/bin/halo" "$@"\n',
-    "armv7": APPRUN_HEAD + 'exec "$HERE/usr/bin/halo" "$@"\n',
+    "x86_64": APPRUN_HEAD + APPRUN_STATE + 'exec "$HERE/usr/bin/halo" "$@"\n',
+    "armv7": APPRUN_HEAD + APPRUN_STATE + 'exec "$HERE/usr/bin/halo" "$@"\n',
     "aarch64": APPRUN_HEAD
     + 'export LD_LIBRARY_PATH="$HERE/usr/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"\n'
     + 'export HALO_GUEST_ELF="$HERE/usr/bin/halo_guest.elf"\n'
@@ -107,7 +114,9 @@ LAUNCHER_HEAD = (
     'export HALO_DATA_ROOT="${HALO_DATA_ROOT:-$HOME/.local/share/halo}"\n'
 )
 LAUNCHER = {
-    "x86_64": LAUNCHER_HEAD + 'exec /app/bin/halo "$@"\n',
+    "x86_64": LAUNCHER_HEAD
+    + 'export HALO_CONFIG_FILE="${HALO_CONFIG_FILE:-$HALO_DATA_ROOT/config.toml}"\n'
+    + 'exec /app/bin/halo "$@"\n',
     "aarch64": LAUNCHER_HEAD
     + 'export HALO_GUEST_ELF="${HALO_GUEST_ELF:-/app/bin/halo_guest.elf}"\n'
     + 'exec /app/bin/halo_host "$@"\n',
@@ -140,6 +149,9 @@ def flatpak_manifest(arch, bin_dir):
     for name in binaries:
         if name.startswith("libSDL3") or name == "SDL3-LICENSE.txt":
             commands.append(f"install -Dm644 {name} /app/lib/{name}")
+    if arch == "x86_64":
+        # (the mount points of the extensions: the sandbox cannot make them)
+        commands.append("mkdir -p /app/lib/i386-linux-gnu/GL")
     quoted_launcher = launcher.replace("'", "'\\''")
     commands += [
         f"install -Dm644 {APP_ID}.desktop /app/share/applications/{APP_ID}.desktop",
@@ -173,14 +185,25 @@ def flatpak_manifest(arch, bin_dir):
                 "version": "25.08",
                 "autodelete": True,
             },
+            # (as the runtime declares its own GL extension: without the
+            # library path and the merged directories the 32-bit Mesa is not
+            # found, and the window has no GLX visual)
             "org.freedesktop.Platform.GL32": {
                 "directory": "lib/i386-linux-gnu/GL",
                 "version": "25.08",
+                "versions": "25.08;25.08-extra",
                 "subdirectories": True,
-                "autodelete": True,
+                "autodelete": False,
                 "no-autodownload": True,
+                "add-ld-path": "lib",
+                "merge-dirs": "vulkan/icd.d;glvnd/egl_vendor.d;egl/egl_external_platform.d;OpenCL/vendors;lib/dri;lib/d3d;lib/gbm;vulkan/explicit_layer.d;vulkan/implicit_layer.d;vdpau",
+                "download-if": "active-gl-driver",
+                "enable-if": "active-gl-driver",
+                "autoprune-unless": "active-gl-driver",
             },
         }
+        # (the 32-bit game's system calls are not allowed through otherwise)
+        manifest["finish-args"].append("--allow=multiarch")
     return manifest
 
 
