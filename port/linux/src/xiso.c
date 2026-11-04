@@ -41,7 +41,7 @@ left) and given the name maps only when every file is complete.
 */
 
 #ifdef HALO_LINUX_ARM64_HOST
-/* The native arm64 host has no Xbox SDK headers; only platform_log is used here. */
+/* the native arm64 host has no Xbox SDK headers; only platform_log is used here */
 void platform_log(const char *format, ...) __attribute__((format(printf, 1, 2)));
 #else
 #include "platform.h"

@@ -45,7 +45,7 @@ jobs:
           echo "PKG_CONFIG_PATH=$GITHUB_WORKSPACE/sdl-prefix/lib/pkgconfig" >> "$GITHUB_ENV"
       - name: Build the game
         run: |
-          ./configure.py --guest-lld-bin /usr/bin
+          python3 configure.py --guest-lld-bin /usr/bin
           ninja linux_arm64_guest linux_arm64_host
       - name: Collect the binaries
         run: |

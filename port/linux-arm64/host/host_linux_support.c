@@ -1,14 +1,10 @@
 /*
 HOST_LINUX_SUPPORT.C
 
-The Linux host's logging and termination, and the imports the guest
-expects that are named for Android. The Android build keeps its own
-versions in host_main.c and host_render_policy.c; this file is the
-Linux side of the same contract, without logcat and without JNI.
-
-The Android port names these imports for the platform they came from;
-the guest calls them by name, so the Linux host provides them with the
-same names and signatures.
+The Linux host's logging, termination and storage paths, and stand-ins
+for the Android-only imports the guest still calls (chip family, gesture
+insets, touch). host_main.c and host_render_policy.c have the Android
+versions.
 */
 
 #include "../../android/host/host.h"

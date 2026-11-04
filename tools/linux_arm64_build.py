@@ -86,6 +86,8 @@ def linux_arm64_host_build(n: Writer, host_table_c: Path) -> None:
                 "-O2",
                 "-std=gnu11",
                 "-D_GNU_SOURCE",
+                # a non-PIE host's heap can cover the Custom Edition window at 0x40440000
+                "-fPIE",
                 "-DHALO_LINUX_ARM64_HOST",
                 f"-I{GUEST_DIR}/include",
                 f"-I{ANDROID_HOST}",
@@ -185,7 +187,7 @@ def linux_arm64_host_build(n: Writer, host_table_c: Path) -> None:
         host_objects.append(obj)
     n.rule(
         name="linux_arm64_host_link",
-        command="$linux_arm64_host_cc $in -o $out $$(pkg-config --libs sdl3 glesv2 egl) -lm -lpthread -ldl",
+        command="$linux_arm64_host_cc $in -o $out -pie $$(pkg-config --libs sdl3 glesv2 egl) -lm -lpthread -ldl",
         description="LINUX ARM64 HOST LINK $out",
     )
     n.build(
@@ -205,6 +207,10 @@ def generate_linux_arm64_build(n: Writer, sln: Any) -> None:
         return
     config_path = LINUX_DIR / "port.json"
     if not config_path.is_file():
+        print(
+            "Native Linux arm64 build disabled: the port configuration was not found",
+            file=sys.stderr,
+        )
         return
     try:
         THIRD_PARTY.mkdir(parents=True, exist_ok=True)
@@ -219,7 +225,11 @@ def generate_linux_arm64_build(n: Writer, sln: Any) -> None:
         return
     config: dict[str, Any] = json.loads(config_path.read_text(encoding="utf-8"))
 
-    guest_cc = getattr(sln, "android_guest_cc", None) or "clang"
+    guest_cc = (
+        getattr(sln, "guest_cc", None)
+        or getattr(sln, "android_guest_cc", None)
+        or "clang"
+    )
     n.comment("Native Linux arm64 guest build (ninja linux_arm64_guest)")
     n.variable("linux_arm64_guest_cc", guest_cc)
 
