@@ -185,14 +185,25 @@ def flatpak_manifest(arch, bin_dir):
                 "version": "25.08",
                 "autodelete": True,
             },
+            # (as the runtime declares its own GL extension: without the
+            # library path and the merged directories the 32-bit Mesa is not
+            # found, and the window has no GLX visual)
             "org.freedesktop.Platform.GL32": {
                 "directory": "lib/i386-linux-gnu/GL",
                 "version": "25.08",
+                "versions": "25.08;25.08-extra",
                 "subdirectories": True,
-                "autodelete": True,
+                "autodelete": False,
                 "no-autodownload": True,
+                "add-ld-path": "lib",
+                "merge-dirs": "vulkan/icd.d;glvnd/egl_vendor.d;egl/egl_external_platform.d;OpenCL/vendors;lib/dri;lib/d3d;lib/gbm;vulkan/explicit_layer.d;vulkan/implicit_layer.d;vdpau",
+                "download-if": "active-gl-driver",
+                "enable-if": "active-gl-driver",
+                "autoprune-unless": "active-gl-driver",
             },
         }
+        # (the 32-bit game's system calls are not allowed through otherwise)
+        manifest["finish-args"].append("--allow=multiarch")
     return manifest
 
 

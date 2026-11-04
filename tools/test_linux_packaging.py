@@ -158,6 +158,8 @@ def test_flatpak_manifest_x86_64(tmp_path):
     assert ext["org.freedesktop.Platform.Compat.i386"]["directory"] == "lib/i386-linux-gnu"
     assert ext["org.freedesktop.Platform.GL32"]["directory"] == "lib/i386-linux-gnu/GL"
     assert ext["org.freedesktop.Platform.GL32"]["no-autodownload"] is True
+    assert ext["org.freedesktop.Platform.GL32"]["add-ld-path"] == "lib"
+    assert "--allow=multiarch" in manifest["finish-args"]
 
 
 def test_flatpak_manifest_aarch64(tmp_path):
