@@ -195,7 +195,7 @@ def resolve(
         if root in index and not skip(root):
             result_set.add(root)
 
-    return sorted(list(result_set))
+    return sorted(result_set)
 
 
 def fetch_index() -> str:

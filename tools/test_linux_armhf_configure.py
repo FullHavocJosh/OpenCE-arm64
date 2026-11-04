@@ -14,6 +14,7 @@ def test_help_lists_armhf_options() -> None:
         cwd=ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0
     assert "--linux-armhf" in result.stdout
