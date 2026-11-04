@@ -10,8 +10,9 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 from .embed_assets import hud_assets_build, hud_configure_inputs, server_ui_build
 from .ninja_syntax import Writer
@@ -23,11 +24,11 @@ PORT_CONFIG = PORT_DIR / "port.json"
 XDK_INCLUDE = Path("port/include/xdk")
 
 
-def xdk_headers() -> List[Path]:
+def xdk_headers() -> list[Path]:
     return sorted(XDK_INCLUDE.glob("*.h"))
 
 
-def game_sources(config: Dict[str, Any]) -> List[Path]:
+def game_sources(config: dict[str, Any]) -> list[Path]:
     """the game's C sources (port.json "game"): every one under its root but
     those excluded (a file, or a folder: a name ending in "/")"""
     game = config["game"]
@@ -39,7 +40,7 @@ def game_sources(config: Dict[str, Any]) -> List[Path]:
     )
 
 
-def game_defines_and_includes(config: Dict[str, Any]) -> str:
+def game_defines_and_includes(config: dict[str, Any]) -> str:
     """the game sources' defines and include directories (port.json "game")"""
     game = config["game"]
     return " ".join(
@@ -140,7 +141,7 @@ MINIUPNPC_DEFINES = ["-DMINIUPNP_STATICLIB", "-DMINIUPNPC_SET_SOCKET_TIMEOUT", "
                      "-D_BSD_SOURCE", "-D_DEFAULT_SOURCE"]
 
 
-def miniupnpc_sources() -> List[Path]:
+def miniupnpc_sources() -> list[Path]:
     """miniupnpc's library sources (port/third_party/miniupnpc/src)"""
     return sorted((MINIUPNPC_DIR / "src").glob("*.c"))
 
@@ -174,7 +175,7 @@ def updater_defines(release: bool) -> str:
     return (f'-DHALO_BUILD_NUMBER={number} -DHALO_BUILD_FLAVOR=\\"{flavor}\\" '
             f'-DHALO_BUILD_REPOSITORY=\\"{build_repository()}\\"')
 
-def configuration_defines(sln: Any) -> List[str]:
+def configuration_defines(sln: Any) -> list[str]:
     """what configure.py's options define for every unit of a native build:
     --release (no assertions), --profile (the profiling build's recording,
     port/linux/src/profile_trace.c)"""
@@ -224,6 +225,58 @@ POSIX_FLAGS = [
     "-Wall",
 ]
 
+# configure.py --linux-arch armv7: the game for 32-bit ARM Linux (hard float).
+# ARM's char is unsigned; the game assumes it is signed.
+ARMV7_TARGET = [
+    "--target=armv7-linux-gnueabihf",
+    "-march=armv7-a",
+    "-mfpu=vfpv3-d16",
+    "-mfloat-abi=hard",
+    "-fsigned-char",
+]
+_X86_ONLY_FLAGS = ("--target=i686-linux-gnu", "-m32", "-malign-double", "-freg-struct-return")
+
+
+def is_armv7(sln: Any) -> bool:
+    return getattr(sln, "linux_arch", "x86") == "armv7"
+
+
+def sysroot_flags(sln: Any) -> list[str]:
+    sysroot = getattr(sln, "linux_sysroot", None)
+    return [f"--sysroot={sysroot}"] if sysroot else []
+
+
+def abi_flags(sln: Any) -> list[str]:
+    """LINUX_ABI_FLAGS for the architecture being built"""
+    if not is_armv7(sln):
+        return list(LINUX_ABI_FLAGS)
+    return [
+        *(flag for flag in LINUX_ABI_FLAGS if flag not in _X86_ONLY_FLAGS),
+        *ARMV7_TARGET,
+        "-DHALO_LINUX_ARMV7=1",
+        "-DHALO_GLES=1",
+        *sysroot_flags(sln),
+    ]
+
+
+def posix_flags(sln: Any) -> list[str]:
+    """POSIX_FLAGS for the architecture being built"""
+    if not is_armv7(sln):
+        return list(POSIX_FLAGS)
+    return [
+        *(flag for flag in POSIX_FLAGS if flag not in _X86_ONLY_FLAGS),
+        *ARMV7_TARGET,
+        *sysroot_flags(sln),
+    ]
+
+
+def link_target_flags(sln: Any) -> list[str]:
+    """the target flags of the link commands"""
+    if not is_armv7(sln):
+        return ["--target=i686-linux-gnu", "-m32"]
+    return ["--target=armv7-linux-gnueabihf", "-mfloat-abi=hard", "-fuse-ld=lld", *sysroot_flags(sln)]
+
+
 # Units compiled with a profile (-fprofile-use) that does not quite match
 # them: new or changed functions simply go without.
 PROFILE_USE_FLAGS = [
@@ -240,7 +293,7 @@ OPUS_DIR = Path("port/third_party/opus")
 OPUS_DEFINES = ("-DOPUS_BUILD", "-DVAR_ARRAYS", "-DHAVE_LRINTF", "-DHAVE_LRINT")
 
 
-def opus_sources() -> List[Path]:
+def opus_sources() -> list[Path]:
     """Opus's library sources (port/third_party/opus/sources.txt)"""
     return [OPUS_DIR / line.strip() for line in (OPUS_DIR / "sources.txt").read_text().splitlines() if line.strip()]
 
@@ -251,7 +304,7 @@ def opus_cflags(abi: str) -> str:
                                                             ("include", "celt", "silk", "silk/float")), "-w"])
 
 
-def musl_math_sources() -> List[Path]:
+def musl_math_sources() -> list[Path]:
     """musl's maths functions the game uses (port/third_party/musl-math)"""
     return sorted((MUSL_MATH_DIR / "src").glob("*.c"))
 
@@ -266,7 +319,10 @@ def march_flag(sln: Any) -> str:
     """The instruction set of the native x86 builds: this machine's
     (-march=native, the default), or with configure.py --portable the
     baseline every x86-64 processor has (SSE2), for builds that run on other
-    computers. The game stays 32-bit code either way."""
+    computers. The game stays 32-bit code either way. With configure.py
+    --linux-arch armv7 it is the ARMv7-A baseline."""
+    if is_armv7(sln):
+        return "-march=armv7-a"
     return "-march=x86-64" if getattr(sln, "port_portable", False) else "-march=native"
 
 
@@ -295,7 +351,7 @@ SDL_OPTIONS = [
 ]
 
 
-def portable_sdl(n: Writer, sln: Any, build_dir: Path, cc: str) -> Tuple[List[str], List[str], Path, Path, Path]:
+def portable_sdl(n: Writer, sln: Any, build_dir: Path, cc: str) -> tuple[list[str], list[str], Path, Path, Path]:
     """The portable build's system root and SDL3: the compiler's flags, the
     linker's, what every unit waits for (the system root's stamp), the
     libSDL3.so.0 that the executable links to, and SDL's license (which the
@@ -351,7 +407,7 @@ def lto_mode(sln: Any) -> str:
     return getattr(sln, "port_lto", "full")
 
 
-def lto_flags(sln: Any, cache_dir: Path) -> Tuple[List[str], List[str]]:
+def lto_flags(sln: Any, cache_dir: Path) -> tuple[list[str], list[str]]:
     """compiler and linker flags for link-time optimisation with lld"""
     mode = lto_mode(sln)
     if mode == "off":
@@ -371,10 +427,10 @@ LINUX_PROFILE = PGO_DIR / "halo_linux.profdata"
 WINDOWS_PROFILE = PGO_DIR / "halo_windows.profdata"
 PROFILE_LLVM_MAJOR = 22
 
-_clang_majors: Dict[str, Optional[int]] = {}
+_clang_majors: dict[str, int | None] = {}
 
 
-def clang_major(cc: str) -> Optional[int]:
+def clang_major(cc: str) -> int | None:
     """the major version of the clang named cc, or None if unknown"""
     if cc not in _clang_majors:
         try:
@@ -391,7 +447,7 @@ def pgo_mode(sln: Any) -> str:
     return getattr(sln, "port_pgo", "use")
 
 
-def pgo_profile(sln: Any, own: Optional[Path], others: Sequence[Path], cc: str) -> Optional[Path]:
+def pgo_profile(sln: Any, own: Path | None, others: Sequence[Path], cc: str) -> Path | None:
     """The profile a native build is optimised with: --pgo-profile's; with
     --pgo=train, the build's own profile (trained if it is missing);
     otherwise the first committed profile there is, its own first. None with
@@ -415,16 +471,16 @@ def pgo_profile(sln: Any, own: Optional[Path], others: Sequence[Path], cc: str) 
     return None
 
 
-def profile_use_flags(profile: Any) -> List[str]:
+def profile_use_flags(profile: Any) -> list[str]:
     return [f"-fprofile-use={_quote(profile)}", *PROFILE_USE_FLAGS] if profile else []
 
 
-def _load_port_config() -> Dict[str, Any]:
+def _load_port_config() -> dict[str, Any]:
     with open(PORT_CONFIG, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def linux_configure_inputs() -> List[Path]:
+def linux_configure_inputs() -> list[Path]:
     """Files whose change must re-run configure.py."""
     if not PORT_CONFIG.is_file():
         return [Path(__file__)]
@@ -444,8 +500,11 @@ def generate_linux_build(n: Writer, sln: Any) -> None:
     if not PORT_CONFIG.is_file():
         # a checkout without the port (or a test fixture): nothing to emit
         return
+    armv7 = is_armv7(sln)
+    if armv7 and getattr(sln, "port_portable", False):
+        raise ValueError("--portable is for x86 builds")
     config = _load_port_config()
-    build_dir: Path = sln.build_dir / "linux"
+    build_dir: Path = sln.build_dir / ("linux-armv7" if armv7 else "linux")
     obj_dir = build_dir / "obj"
     output = build_dir / "halo"
     cc = sln.linux_cc or "clang"
@@ -533,14 +592,14 @@ def generate_linux_build(n: Writer, sln: Any) -> None:
     # (a debug build checks its stack frames, and stops at the first one
     # overrun, as it stops at the first failed assertion; a release build
     # does not, so that an overrun nobody has met cannot end a game)
-    abi = " ".join(LINUX_ABI_FLAGS + target + configuration_defines(sln)
+    abi = " ".join(abi_flags(sln) + target + configuration_defines(sln)
                    + ([] if getattr(sln, "port_release", False) else ["-fstack-protector-strong"]))
     port_include = PORT_DIR / "include"
     sdk_flags = f"-idirafter {XDK_INCLUDE}"
     libs = " ".join(f"-l{lib}" for lib in config.get("libraries", []))
 
-    def emit(obj_dir: Path, output: Path, extra_cflags: List[str], extra_ldflags: List[str],
-             implicit_inputs: List[Path], validator: Optional[Path] = None) -> None:
+    def emit(obj_dir: Path, output: Path, extra_cflags: list[str], extra_ldflags: list[str],
+             implicit_inputs: list[Path], validator: Path | None = None) -> None:
         """the objects and the executable, with the given extra flags (and
         the tag validator alone, tools/map_validate.c, as validator)"""
         extra = " ".join(extra_cflags)
@@ -548,7 +607,7 @@ def generate_linux_build(n: Writer, sln: Any) -> None:
         # optimise them together with code that has a 16-bit one: they stay
         # native objects
         posix_extra = " ".join(flag for flag in extra_cflags if not flag.startswith("-flto"))
-        objects: List[Path] = []
+        objects: list[Path] = []
 
         def add_object(source: Path, cflags: str, posix: bool = False) -> None:
             obj = obj_dir / source.with_suffix(".o")
@@ -604,7 +663,7 @@ def generate_linux_build(n: Writer, sln: Any) -> None:
             "-Isource -Isource/cseries",
             sdk_flags,
         ])
-        posix_cflags = " ".join(POSIX_FLAGS + target + [f"-I{platform_dir}"])
+        posix_cflags = " ".join(posix_flags(sln) + target + [f"-I{platform_dir}"])
         # (with Mbed TLS's own locks, as built from its unchanged config by
         # these defines: on Linux the self-updater's thread (posix_update.c)
         # and internet play's (posix_dtls.c) both use it, and two threads
@@ -630,13 +689,13 @@ def generate_linux_build(n: Writer, sln: Any) -> None:
         # wcslen, which linux_link_check.py rejects: the game's wchar_t is
         # 16-bit)
         for source in sorted((MBEDTLS_DIR / "library").glob("*.c")):
-            add_object(source, " ".join(POSIX_FLAGS + target + [mbedtls_include,
+            add_object(source, " ".join(posix_flags(sln) + target + [mbedtls_include,
                                                                 f"-I{MBEDTLS_DIR / 'library'}", "-fno-builtin-wcslen",
                                                                 "-w"]), posix=True)
         # internet play's UPnP (port/third_party/miniupnpc), with the host's
         # ABI as posix_upnp.c, which uses it
         for source in miniupnpc_sources():
-            add_object(source, " ".join(POSIX_FLAGS + target + [*MINIUPNPC_DEFINES,
+            add_object(source, " ".join(posix_flags(sln) + target + [*MINIUPNPC_DEFINES,
                                                                 f"-I{MINIUPNPC_DIR / 'include'}",
                                                                 f"-I{MINIUPNPC_DIR / 'src'}",
                                                                 "-fno-builtin-wcslen", "-w"]), posix=True)
@@ -668,7 +727,7 @@ def generate_linux_build(n: Writer, sln: Any) -> None:
             rule="linux_link",
             inputs=objects,
             variables={
-                "ldflags": " ".join(["--target=i686-linux-gnu", "-m32", "-no-pie", "-g", *sysroot_ldflags,
+                "ldflags": " ".join([*link_target_flags(sln), "-no-pie", "-g", *sysroot_ldflags,
                                      *extra_ldflags,
                                      # (posix_trace_marker.c's, which the GPU driver's calls must reach)
                                      *(f"-Wl,--export-dynamic-symbol={name}"
@@ -704,7 +763,7 @@ def generate_linux_build(n: Writer, sln: Any) -> None:
                 outputs=validator,
                 rule="linux_tool_link",
                 inputs=tool_objects,
-                variables={"ldflags": " ".join(["--target=i686-linux-gnu", "-m32", "-no-pie", "-g", *sysroot_ldflags,
+                variables={"ldflags": " ".join([*link_target_flags(sln), "-no-pie", "-g", *sysroot_ldflags,
                                                 *extra_ldflags])},
             )
 
@@ -712,7 +771,8 @@ def generate_linux_build(n: Writer, sln: Any) -> None:
     # --pgo=train one that an instrumented build records while playing
     # (tools/pgo_train.py). A profile is trained once: code changed since
     # simply goes without, and deleting it trains a new one.
-    profile = pgo_profile(sln, LINUX_PROFILE, [], cc)
+    # (the committed profile is x86's: an armv7 build goes without)
+    profile = None if armv7 else pgo_profile(sln, LINUX_PROFILE, [], cc)
     if pgo_mode(sln) == "train" and profile == LINUX_PROFILE:
         instrumented = build_dir / "pgo-generate" / "halo"
         emit(build_dir / "pgo-generate" / "obj", instrumented, ["-fprofile-generate"], ["-fprofile-generate"], [])
@@ -737,6 +797,6 @@ def generate_linux_build(n: Writer, sln: Any) -> None:
     # (network.masters_file, server.masters_file)
     masters = build_dir / "masters.txt"
     n.build(outputs=masters, rule="linux_copy", inputs=Path("port/assets/network/masters.txt"))
-    n.build(outputs="linux", rule="phony",
+    n.build(outputs="linux_armv7" if armv7 else "linux", rule="phony",
             inputs=[output, brokers, masters, validator, *sdl_outputs])
     n.newline()
