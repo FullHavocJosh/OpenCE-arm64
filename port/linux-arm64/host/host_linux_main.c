@@ -196,7 +196,7 @@ int main(int argc, char **argv)
 	host_logf(HOST_LOG_INFO, "Halo for Linux starting");
 	host_install_signal_handlers();
 	resolve_roots(argc, argv);
-	/* the dialog needs the main thread */
+	/* the dialog needs the main thread; host_linux_offer_game_data returns 0 when no prompt could be shown, and game_main then reports the missing data with host_fatal */
 	if (!host_directory_has_maps(data_root))
 		host_linux_offer_game_data(data_root);
 	if (host_native_thread_create(game_main, NULL, MAIN_STACK_SIZE) != 0)

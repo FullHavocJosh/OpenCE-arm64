@@ -241,7 +241,10 @@ int host_linux_offer_game_data(const char *destination)
 	int image_found;
 
 	if (!SDL_Init(SDL_INIT_VIDEO))
+	{
+		platform_log("no game data prompt: %s", SDL_GetError());
 		return 0;
+	}
 	image_found = data_find_image(destination, found, sizeof(found));
 	if (image_found)
 	{
