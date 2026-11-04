@@ -12,6 +12,7 @@ host_main.c (Android) and host_linux_main.c (Linux) both use it.
 #include "host.h"
 #include "tomlc17.h"
 
+#include <SDL3/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -105,6 +106,57 @@ void host_time_zone(char *buffer, size_t size)
 	localtime_r(&now, &local);
 	offset = -local.tm_gmtoff;
 	snprintf(buffer, size, "<L>%s%ld:%02ld", offset < 0 ? "-" : "", labs(offset) / 3600, (labs(offset) / 60) % 60);
+}
+
+/* the display's size, refresh rate and density, for the guest's environment */
+void host_environment_set_display(struct host_environment *environment)
+{
+	/* the game renders 480 lines at the display's aspect ratio
+	(landscape) unless display.screen_width says otherwise (d3d8_gl.c) */
+	const SDL_DisplayMode *mode;
+	char width[16];
+	char refresh[16];
+
+	SDL_InitSubSystem(SDL_INIT_VIDEO);
+	mode = SDL_GetDesktopDisplayMode(SDL_GetPrimaryDisplay());
+	if (mode && mode->w > 0 && mode->h > 0)
+	{
+		int longer = mode->w > mode->h ? mode->w : mode->h;
+		int shorter = mode->w > mode->h ? mode->h : mode->w;
+
+		snprintf(width, sizeof(width), "%d", (480 * longer / shorter) & ~1);
+		host_environment_set(environment, "HALO_DISPLAY_WIDTH", width);
+		host_logf(HOST_LOG_INFO, "display %dx%d: rendering %sx480", mode->w, mode->h, width);
+	}
+	if (mode)
+	{
+		/* display.max_fps's "twice the refresh rate" (sdl_platform.c):
+		the guest cannot ask SDL for the display mode */
+		snprintf(refresh, sizeof(refresh), "%g", mode->refresh_rate > 0.0f ? mode->refresh_rate : 60.0f);
+		host_environment_set(environment, "HALO_DISPLAY_REFRESH", refresh);
+	}
+	{
+		/* dp for the touch controls (port/linux/src/touch_input.c), and what the
+		game uses for its UI scale */
+		float density = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+		char text[16];
+
+		if (density > 0.0f)
+		{
+			snprintf(text, sizeof(text), "%g", density);
+			host_environment_set(environment, "HALO_DISPLAY_DENSITY", text);
+			host_logf(HOST_LOG_INFO, "display density %s", text);
+		}
+	}
+}
+
+/* starts the debug sampler if config.toml sets debug.sample_seconds */
+void host_start_sampler_from_config(const char *config_path)
+{
+	char seconds[32];
+
+	if (host_config_sample_seconds(config_path, seconds, sizeof(seconds)))
+		host_debug_start_sampler(seconds);
 }
 
 /* copies argv and the environment into guest memory */

@@ -101,7 +101,7 @@ def _manifest(arch, names, tmp_path):
 def _check_flatpak_common(manifest):
     assert manifest["app-id"] == APP_ID
     assert manifest["runtime"] == "org.freedesktop.Platform"
-    assert manifest["runtime-version"] == "24.08"
+    assert manifest["runtime-version"] == "25.08"
     assert manifest["sdk"] == "org.freedesktop.Sdk"
     assert manifest["command"] == "opence"
     assert "--filesystem=xdg-data/halo:create" in manifest["finish-args"]

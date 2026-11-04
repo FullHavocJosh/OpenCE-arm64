@@ -88,6 +88,10 @@ int host_config_sample_seconds(const char *path, char *text, size_t size);
 int host_config_boolean_or(const char *path, const char *name, int otherwise);
 /* POSIX TZ for the current local offset */
 void host_time_zone(char *buffer, size_t size);
+/* sets HALO_DISPLAY_WIDTH, _REFRESH and _DENSITY from the primary display */
+void host_environment_set_display(struct host_environment *environment);
+/* starts the debug sampler if config.toml sets debug.sample_seconds */
+void host_start_sampler_from_config(const char *config_path);
 /* copies argv and the environment into guest memory; returns the boot block */
 uint32_t host_make_boot(const struct host_environment *environment);
 
