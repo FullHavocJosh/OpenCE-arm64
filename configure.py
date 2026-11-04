@@ -16,6 +16,10 @@ from tools.linux_arm64_build import (
     generate_linux_arm64_build,
     linux_arm64_configure_inputs,
 )
+from tools.linux_armhf_build import (
+    generate_linux_armhf_build,
+    linux_armhf_configure_inputs,
+)
 from tools.linux_build import (
     check_profile_options,
     generate_linux_build,
@@ -98,6 +102,16 @@ parser.add_argument(
     help="directory with ld.lld and llvm-ar; builds the guest ELF for native Linux arm64 with `ninja linux_arm64_guest`, no Android NDK",
 )
 parser.add_argument(
+    "--linux-armhf",
+    action="store_true",
+    help="builds the armhf (AArch32) probe for Linux arm64 with `ninja linux_armhf_probe`; feasibility only",
+)
+parser.add_argument(
+    "--armhf-cc",
+    type=str,
+    help="clang for the armhf probe (default: clang)",
+)
+parser.add_argument(
     "--android-guest-cc",
     type=str,
     help="clang with the arm64_32 target for the Android guest (default: clang)",
@@ -166,6 +180,8 @@ sln = SimpleNamespace(
     guest_cc=args.guest_cc,
     web_emcc=args.web_emcc,
     guest_lld_bin=args.guest_lld_bin,
+    linux_armhf=args.linux_armhf,
+    armhf_cc=args.armhf_cc,
 )
 if not is_windows():
     sln.windows_cc = args.windows_cc
@@ -192,6 +208,7 @@ n.newline()
 generate_linux_build(n, sln)
 generate_android_build(n, sln)
 generate_linux_arm64_build(n, sln)
+generate_linux_armhf_build(n, sln)
 generate_windows_build(n, sln)
 generate_web_build(n, sln)
 
@@ -211,6 +228,7 @@ n.build(
         *linux_configure_inputs(),
         *android_configure_inputs(),
         *linux_arm64_configure_inputs(),
+        *linux_armhf_configure_inputs(),
         *windows_configure_inputs(),
         *web_configure_inputs(),
     ],
