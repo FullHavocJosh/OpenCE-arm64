@@ -89,6 +89,8 @@ def stage_appdir(arch, bin_dir, out):
     (apps / (APP_ID + ".desktop")).write_text(desktop)
 
     copy(METAINFO, out / "usr" / "share" / "metainfo" / METAINFO.name)
+    # (appimagetool looks for the older .appdata.xml name and warns without it)
+    copy(METAINFO, out / "usr" / "share" / "metainfo" / (APP_ID + ".appdata.xml"))
     copy(ICON, out / (APP_ID + ".png"))
     copy(ICON, out / "usr" / "share" / "icons" / "hicolor" / "512x512" / "apps" / (APP_ID + ".png"))
     return out
