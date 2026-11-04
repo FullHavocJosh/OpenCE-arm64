@@ -41,6 +41,28 @@ def test_graph_with_the_flag():
     assert "build linux_armhf_probe: phony" in text
 
 
+def test_sdl_graph():
+    text = " ".join(graph(SimpleNamespace(linux_armhf=True)).replace(" $\n", " ").split())
+    assert "rule linux_armhf_sdl command" in text
+    assert (
+        "python3 tools/linux_armhf_sdl.py build/linux-armhf/third_party/sdl "
+        "build/linux-armhf/third_party/sysroot $armhf_cc"
+    ) in text
+    assert (
+        "build build/linux-armhf/third_party/sdl/stamp: linux_armhf_sdl "
+        "| tools/linux_armhf_sdl.py build/linux-armhf/third_party/stamp"
+    ) in text
+    assert "build linux_armhf_sdl: phony build/linux-armhf/third_party/sdl/stamp" in text
+    sdl_install = linux_armhf_build.SDL_INSTALL.as_posix()
+    include = "-I" + sdl_install + "/include"
+    assert include in text
+    assert text.index(include) < text.index("--sysroot=build/linux-armhf/third_party/sysroot -O2")
+    assert "-L" + sdl_install + "/lib" in text
+    assert "-Wl,-rpath-link," + sdl_install + "/lib" in text
+    assert "| build/linux-armhf/third_party/stamp build/linux-armhf/third_party/sdl/stamp" in text
+    assert "| build/linux-armhf/third_party/sdl/stamp" in text
+
+
 def test_compiler_override():
     assert "armhf_cc = clang\n" in graph(SimpleNamespace(linux_armhf=True))
     text = graph(SimpleNamespace(linux_armhf=True, armhf_cc="clang-19"))

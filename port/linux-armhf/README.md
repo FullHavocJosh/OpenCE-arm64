@@ -34,6 +34,29 @@ dependencies) comes from Debian 13 armhf.
 The bundle holds the armhf libraries, the bundled loader, the probe and a
 `launch` script. The device needs none of them installed.
 
+## SDL3 from source
+
+Debian 13 ships SDL3 3.2.10, but the game needs 3.4.x. `ninja
+linux_armhf_sdl` cross builds SDL 3.4.16 (the version the Linux arm64
+sysroot tool pins) from source for armhf, with the machine's clang and
+lld against the Debian armhf system root. The library lands in
+`build/linux-armhf/third_party/sdl/install/lib`.
+
+The build needs meson, ninja, cmake and pkg-config on the build host
+(`brew install meson ninja cmake pkgconf`). SDL's Wayland driver needs a
+host `wayland-scanner` at CMake configure time, and SDL 3.4.16 turns
+Wayland off without it. The Mac has none, and Homebrew's wayland formula
+is Linux-only, so the build compiles wayland 1.26.0's `wayland-scanner`
+itself into `build/linux-armhf/third_party/sdl/wayland-host`. macOS's
+system expat is enough for that.
+
+To bundle it, pass that folder as the optional fourth argument `sdl_lib`:
+
+`python3 tools/linux_armhf_bundle.py SYSROOT PROBE OUT build/linux-armhf/third_party/sdl/install/lib`
+
+The probe links the source-built library and prints a line
+`sdl_version=`, so 3.4.16 shows on the device.
+
 ## Running
 
 Copy `build/linux-armhf/bundle` to the device and enter `./launch`. The

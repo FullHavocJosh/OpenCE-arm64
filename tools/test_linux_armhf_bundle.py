@@ -46,6 +46,32 @@ def test_bundle_layout(tmp_path):
     assert '--library-path "$d/lib:$d/lib/pulseaudio"' in text
 
 
+def test_bundle_sdl_lib(tmp_path):
+    sysroot = make_sysroot(tmp_path / 'sysroot')
+    lib = sysroot / 'usr' / 'lib' / 'arm-linux-gnueabihf'
+    (lib / 'libSDL3.so.0.2.10').write_bytes(b'debian')
+    os.symlink('libSDL3.so.0.2.10', lib / 'libSDL3.so.0')
+    probe = tmp_path / 'probe'
+    probe.write_bytes(b'probe')
+    sdl = tmp_path / 'sdl'
+    sdl.mkdir()
+    (sdl / 'libSDL3.so.0.4.16').write_bytes(b'source')
+    os.symlink('libSDL3.so.0.4.16', sdl / 'libSDL3.so.0')
+    os.symlink('libSDL3.so.0', sdl / 'libSDL3.so')
+
+    plain = tmp_path / 'plain'
+    bundle(sysroot, probe, plain)
+    assert (plain / 'lib' / 'libSDL3.so.0').read_bytes() == b'debian'
+
+    out = tmp_path / 'out'
+    bundle(sysroot, probe, out, sdl)
+    assert (out / 'lib' / 'libSDL3.so.0').read_bytes() == b'source'
+    assert os.readlink(out / 'lib' / 'libSDL3.so.0') == 'libSDL3.so.0.4.16'
+    assert (out / 'lib' / 'libSDL3.so').is_symlink()
+    assert not (out / 'lib' / 'libSDL3.so.0.2.10').exists()
+    assert (out / 'lib' / 'libfoo.so.1').exists()
+
+
 def test_bundle_missing_loader(tmp_path):
     sysroot = make_sysroot(tmp_path / 'sysroot', loader=False)
     probe = tmp_path / 'probe'

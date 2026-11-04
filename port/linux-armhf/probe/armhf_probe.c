@@ -220,11 +220,18 @@ int main(void)
     Uint64 elapsed;
     unsigned char pixel[4] = { 0, 0, 0, 0 };
     int status = 1;
+    int sdl_version;
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         probe_print("error: SDL_Init: %s\n", SDL_GetError());
         return 1;
     }
+
+    sdl_version = SDL_GetVersion();
+    probe_print("sdl_version=%d.%d.%d\n",
+                SDL_VERSIONNUM_MAJOR(sdl_version),
+                SDL_VERSIONNUM_MINOR(sdl_version),
+                SDL_VERSIONNUM_MICRO(sdl_version));
 
     if (!probe_create_context(&window, &context)) {
         goto cleanup;

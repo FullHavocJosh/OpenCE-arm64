@@ -1,13 +1,15 @@
 """Bundle the armhf runtime, the probe and a launcher for a Linux aarch64 device.
 
-    python tools/linux_armhf_bundle.py <sysroot> <probe> <out>
+    python tools/linux_armhf_bundle.py <sysroot> <probe> <out> [<sdl_lib>]
 
+An optional <sdl_lib> directory supplies libSDL3.so* in place of the sysroot's.
 <out> gets lib (the armhf libraries and loader), share/glvnd, armhf_probe and
 launch. The launcher runs the bundled loader, because the device has no
 /lib/ld-linux-armhf.so.3.
 """
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -23,8 +25,11 @@ exec "$d/lib/ld-linux-armhf.so.3" --library-path "$d/lib:$d/lib/pulseaudio" "$d/
 """
 
 
-def bundle(sysroot: Path, probe: Path, out: Path) -> None:
-    """Lay out lib, share/glvnd, the probe and a launcher under out."""
+def bundle(sysroot: Path, probe: Path, out: Path, sdl_lib: Path | None = None) -> None:
+    """Lay out lib, share/glvnd, the probe and a launcher under out.
+
+    With sdl_lib, its libSDL3.so* entries replace the sysroot's in out/lib.
+    """
     sysroot = Path(sysroot)
     out = Path(out)
     if out.exists():
@@ -37,6 +42,15 @@ def bundle(sysroot: Path, probe: Path, out: Path) -> None:
         symlinks=True,
         ignore=shutil.ignore_patterns('*.a', 'pkgconfig', 'gcc'),
     )
+    if sdl_lib is not None:
+        for old in (out / 'lib').glob('libSDL3.so*'):
+            old.unlink()
+        for entry in sorted(Path(sdl_lib).glob('libSDL3.so*')):
+            target = out / 'lib' / entry.name
+            if entry.is_symlink():
+                target.symlink_to(os.readlink(entry))
+            else:
+                shutil.copy2(entry, target)
     glvnd = sysroot / 'usr' / 'share' / 'glvnd'
     if glvnd.exists():
         shutil.copytree(glvnd, out / 'share' / 'glvnd', symlinks=True)
@@ -51,10 +65,11 @@ def bundle(sysroot: Path, probe: Path, out: Path) -> None:
 
 
 def main() -> None:
-    """Command line entry: sysroot probe out."""
-    if len(sys.argv) != 4:
+    """Command line entry: sysroot probe out [sdl_lib]."""
+    if len(sys.argv) not in (4, 5):
         sys.exit(__doc__)
-    bundle(Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]))
+    sdl_lib = Path(sys.argv[4]) if len(sys.argv) == 5 else None
+    bundle(Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]), sdl_lib)
 
 
 if __name__ == '__main__':

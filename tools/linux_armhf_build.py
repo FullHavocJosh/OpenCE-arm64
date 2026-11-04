@@ -17,6 +17,9 @@ THIRD_PARTY = BUILD / "third_party"
 SYSROOT = THIRD_PARTY / "sysroot"
 PROBE = Path("port/linux-armhf/probe/armhf_probe.c")
 SYSROOT_TOOL = Path("tools/linux_armhf_sysroot.py")
+SDL = THIRD_PARTY / "sdl"
+SDL_INSTALL = SDL / "install"
+SDL_TOOL = Path("tools/linux_armhf_sdl.py")
 
 
 def linux_armhf_configure_inputs() -> list[Path]:
@@ -40,9 +43,17 @@ def generate_linux_armhf_build(n: Writer, sln: Any) -> None:
         description="Debian armhf system root",
     )
     n.rule(
+        name="linux_armhf_sdl",
+        command=(
+            f"python3 {SDL_TOOL.as_posix()} {SDL.as_posix()} {SYSROOT.as_posix()} $armhf_cc"
+        ),
+        description="SDL3 for armhf",
+    )
+    n.rule(
         name="linux_armhf_cc",
         command=(
             "$cc --target=armv7-linux-gnueabihf -mfloat-abi=hard -mfpu=neon "
+            f"-I{SDL_INSTALL.as_posix()}/include "
             f"--sysroot={SYSROOT.as_posix()} -O2 -std=gnu11 -MMD -MF $out.d -c $in -o $out"
         ),
         description="CC $out",
@@ -54,6 +65,7 @@ def generate_linux_armhf_build(n: Writer, sln: Any) -> None:
         command=(
             "$cc --target=armv7-linux-gnueabihf -mfloat-abi=hard "
             f"--sysroot={SYSROOT.as_posix()} -fuse-ld=lld -Wl,--allow-shlib-undefined "
+            f"-L{SDL_INSTALL.as_posix()}/lib -Wl,-rpath-link,{SDL_INSTALL.as_posix()}/lib "
             "$in -o $out -lSDL3 -lGLESv2 -lm"
         ),
         description="LINK $out",
@@ -68,12 +80,20 @@ def generate_linux_armhf_build(n: Writer, sln: Any) -> None:
         implicit=[str(SYSROOT_TOOL)],
     )
 
+    sdl_stamp = SDL / "stamp"
+    n.build(
+        outputs=[str(sdl_stamp)],
+        rule="linux_armhf_sdl",
+        inputs=[],
+        implicit=[str(SDL_TOOL), str(stamp)],
+    )
+
     obj = BUILD / "armhf_probe.o"
     n.build(
         outputs=[str(obj)],
         rule="linux_armhf_cc",
         inputs=[str(PROBE)],
-        implicit=[str(stamp)],
+        implicit=[str(stamp), str(sdl_stamp)],
         variables={"cc": "$armhf_cc"},
     )
 
@@ -82,10 +102,12 @@ def generate_linux_armhf_build(n: Writer, sln: Any) -> None:
         outputs=[str(exe)],
         rule="linux_armhf_link",
         inputs=[str(obj)],
+        implicit=[str(sdl_stamp)],
         variables={"cc": "$armhf_cc"},
     )
     n.newline()
 
     n.build(outputs=["linux_armhf_sysroot"], rule="phony", inputs=[str(stamp)])
+    n.build(outputs=["linux_armhf_sdl"], rule="phony", inputs=[str(sdl_stamp)])
     n.build(outputs=["linux_armhf_probe"], rule="phony", inputs=[str(exe)])
     n.newline()

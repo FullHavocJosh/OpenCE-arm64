@@ -52,6 +52,16 @@ DEV_ROOTS = [
     "libegl-dev",
     "libgles-dev",
     "libgl-dev",
+    "libwayland-dev",
+    "libffi-dev",
+    "libxkbcommon-dev",
+    "libdrm-dev",
+    "libgbm-dev",
+    "libpulse-dev",
+    "libasound2-dev",
+    "libudev-dev",
+    "libdbus-1-dev",
+    "libdecor-0-dev",
 ]
 
 SKIP_NAMES = {
