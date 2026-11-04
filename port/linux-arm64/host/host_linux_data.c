@@ -9,7 +9,6 @@ Also defines platform_log, which xiso.c calls.
 */
 
 #include "../../android/host/host.h"
-#include "platform.h"
 #include "xiso.h"
 
 #include <SDL3/SDL.h>
