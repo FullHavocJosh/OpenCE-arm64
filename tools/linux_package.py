@@ -26,7 +26,10 @@ DESKTOP = PACKAGING / "opence.desktop"
 METAINFO = PACKAGING / (APP_ID + ".metainfo.xml")
 ICON = ROOT / "port" / "assets" / "icon" / "opence-icon.png"
 
-APPRUN_HEAD = '#!/bin/sh\nHERE=$(dirname "$(readlink -f "$0")")\n'
+# The game's self-updater offers the upstream project's builds, which an
+# AppImage (read-only) and a Flatpak cannot apply: off unless asked for.
+NO_UPDATE = 'export HALO_UPDATE_AUTO="${HALO_UPDATE_AUTO:-false}"\n'
+APPRUN_HEAD = '#!/bin/sh\nHERE=$(dirname "$(readlink -f "$0")")\n' + NO_UPDATE
 # The AppImage mounts read-only: the settings and the game's data live in the
 # user's data folder, as the Flatpak's do.
 APPRUN_STATE = (
@@ -114,6 +117,7 @@ LAUNCHER_HEAD = (
     "#!/bin/sh\n"
     'export LD_LIBRARY_PATH="/app/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"\n'
     'export HALO_DATA_ROOT="${HALO_DATA_ROOT:-$HOME/.local/share/halo}"\n'
+    + NO_UPDATE
 )
 LAUNCHER = {
     "x86_64": LAUNCHER_HEAD
