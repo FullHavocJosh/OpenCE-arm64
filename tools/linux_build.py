@@ -237,6 +237,11 @@ ARMV7_TARGET = [
 _X86_ONLY_FLAGS = ("--target=i686-linux-gnu", "-m32", "-malign-double", "-freg-struct-return")
 
 
+# the Custom Edition tag cache's window, linked into the armv7 executable so
+# that no library is mapped into it (the script's own comment says why)
+ARMV7_TAG_CACHE_SCRIPT = "tools/linux_armv7_tag_cache.ld"
+
+
 def is_armv7(sln: Any) -> bool:
     return getattr(sln, "linux_arch", "x86") == "armv7"
 
@@ -729,12 +734,14 @@ def generate_linux_build(n: Writer, sln: Any) -> None:
             variables={
                 "ldflags": " ".join([*link_target_flags(sln), "-no-pie", "-g", *sysroot_ldflags,
                                      *extra_ldflags,
+                                     *([f"-Wl,-T,{ARMV7_TAG_CACHE_SCRIPT}"] if armv7 else []),
                                      # (posix_trace_marker.c's, which the GPU driver's calls must reach)
                                      *(f"-Wl,--export-dynamic-symbol={name}"
                                        for name in ("open", "open64", "openat", "openat64"))]),
                 "libs": libs,
             },
-            implicit=[Path("tools/linux_link_check.py"), *([libsdl] if libsdl else [])],
+            implicit=[Path("tools/linux_link_check.py"), *([libsdl] if libsdl else []),
+                      *([Path(ARMV7_TAG_CACHE_SCRIPT)] if armv7 else [])],
         )
         # (the portable build's SDL3, beside the executable)
         if libsdl is not None:
