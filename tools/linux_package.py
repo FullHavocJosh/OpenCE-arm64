@@ -141,7 +141,7 @@ def flatpak_manifest(arch, bin_dir):
     manifest = {
         "app-id": APP_ID,
         "runtime": "org.freedesktop.Platform",
-        "runtime-version": "24.08",
+        "runtime-version": "25.08",
         "sdk": "org.freedesktop.Sdk",
         "command": "opence",
         "finish-args": [
@@ -160,12 +160,12 @@ def flatpak_manifest(arch, bin_dir):
         manifest["add-extensions"] = {
             "org.freedesktop.Platform.Compat.i386": {
                 "directory": "lib/i386-linux-gnu",
-                "version": "24.08",
+                "version": "25.08",
                 "autodelete": True,
             },
             "org.freedesktop.Platform.GL32": {
                 "directory": "lib/i386-linux-gnu/GL",
-                "version": "24.08",
+                "version": "25.08",
                 "subdirectories": True,
                 "autodelete": True,
                 "no-autodownload": True,
