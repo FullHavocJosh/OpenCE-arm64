@@ -86,11 +86,12 @@ def in_the_repository(monkeypatch):
 
 def graph(**overrides):
     """The native Linux part of build.ninja, as configure.py writes it"""
-    fields = dict(
-        build_dir=Path("build"), linux_cc="clang", compiler_launcher=None, port_release=False,
-        port_profile=False, port_lto="off", port_portable=False, port_pgo="off",
-        port_pgo_profile=None, linux_arch="x86", linux_sysroot=None,
-    )
+    fields = {
+        "build_dir": Path("build"), "linux_cc": "clang", "compiler_launcher": None,
+        "port_release": False, "port_profile": False, "port_lto": "off",
+        "port_portable": False, "port_pgo": "off", "port_pgo_profile": None,
+        "linux_arch": "x86", "linux_sysroot": None,
+    }
     fields.update(overrides)
     out = io.StringIO()
     linux_build.generate_linux_build(ninja_syntax.Writer(out), SimpleNamespace(**fields))
@@ -143,6 +144,7 @@ def test_armv7_graph_sysroot():
 def run_configure(tmp_path, *options):
     return subprocess.run(
         [sys.executable, str(ROOT / "configure.py"), *options],
+        check=False,
         cwd=tmp_path,
         capture_output=True,
         text=True,

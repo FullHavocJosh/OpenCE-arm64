@@ -701,19 +701,19 @@ def generate_linux_build(n: Writer, sln: Any) -> None:
                                                                 "-fno-builtin-wcslen", "-w"]), posix=True)
         # the settings file's parser (port/third_party/tomlc17), with the
         # platform layer's ABI (its structs hold doubles) and nothing else
-        add_object(TOML_DIR / "tomlc17.c", " ".join([abi, "-std=gnu11", "-w"]))
+        add_object(TOML_DIR / "tomlc17.c", f"{abi} -std=gnu11 -w")
         # the menus' XML parser (port/third_party/expat; menu_files.c)
         for name in EXPAT_SOURCES:
             add_object(EXPAT_DIR / name, " ".join([abi, "-std=gnu11", f"-I{EXPAT_DIR}", "-w"]))
         # internet play's reliable streams (port/third_party/kcp; p2p.c)
-        add_object(KCP_DIR / "ikcp.c", " ".join([abi, "-std=gnu11", "-w"]))
+        add_object(KCP_DIR / "ikcp.c", f"{abi} -std=gnu11 -w")
         # voice chat's codec (port/third_party/opus)
         for source in opus_sources():
             add_object(source, opus_cflags(abi))
         # internet play's signatures, for public games' listings
         # (port/third_party/monocypher; p2p_crypto.c)
         for name in ("monocypher.c", "monocypher-ed25519.c"):
-            add_object(MONOCYPHER_DIR / name, " ".join([abi, "-std=gnu11", "-w"]))
+            add_object(MONOCYPHER_DIR / name, f"{abi} -std=gnu11 -w")
         # the port's zlib
         for name in ZLIB_SOURCES:
             add_object(ZLIB_DIR / name, " ".join([abi, "-std=gnu11", *ZLIB_DEFINES, "-w"]))
