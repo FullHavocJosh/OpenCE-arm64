@@ -38,6 +38,27 @@ static char save_root[512];
 
 /* ---------- paths */
 
+/* create path and every missing parent, like mkdir -p */
+static void make_directories(const char *path)
+{
+	char buffer[512];
+	char *p;
+
+	if (strlen(path) >= sizeof(buffer))
+		return;
+	strcpy(buffer, path);
+	for (p = buffer + 1; *p; p++)
+	{
+		if (*p == '/')
+		{
+			*p = 0;
+			mkdir(buffer, 0775);
+			*p = '/';
+		}
+	}
+	mkdir(buffer, 0775);
+}
+
 /* the data root: the command line, else HALO_DATA_ROOT, else
 $HOME/.local/share/halo; the save root is its save/ subdirectory */
 static void resolve_roots(int argc, char **argv)
@@ -56,6 +77,7 @@ static void resolve_roots(int argc, char **argv)
 		snprintf(data_root, sizeof(data_root), "%s/.local/share/halo", home);
 	}
 	snprintf(save_root, sizeof(save_root), "%s/save", data_root);
+	make_directories(data_root);
 	mkdir(save_root, 0775);
 }
 
