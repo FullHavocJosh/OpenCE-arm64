@@ -207,3 +207,11 @@ def test_workflow_packages():
         assert needle in text
     yaml = pytest.importorskip("yaml")
     assert "jobs" in yaml.safe_load(text)
+
+
+def test_release_publishes_packages():
+    text = (ROOT / ".github" / "workflows" / "build.yml").read_text()
+    for needle in ("uses: ./.github/workflows/linux-packages.yml", "packages-*",
+                   "halo-linux-x86_64", "halo-linux-arm64", "halo-linux-armv7"):
+        assert needle in text
+    assert "workflow_call" in (ROOT / ".github" / "workflows" / "linux-packages.yml").read_text()

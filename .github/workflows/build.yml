@@ -415,6 +415,12 @@ jobs:
           include-hidden-files: true
           retention-days: 3
 
+  packages:
+    # The AppImages and Flatpaks of the Linux builds (linux-packages.yml: x86_64,
+    # arm64 and, as an AppImage only, armv7), for the release. Only for main.
+    if: ${{ github.ref == 'refs/heads/main' }}
+    uses: ./.github/workflows/linux-packages.yml
+
   release:
     # The eight builds (and the Windows builds' PDBs) as a release, tagged
     # build-<run number> and marked latest
@@ -424,7 +430,7 @@ jobs:
     # key (SHA256SUMS.sig; the public key is deploy/release-key.pub); then all
     # but the newest five build-* releases go, tags and all. Only for main,
     # and only when every platform built.
-    needs: [linux, android, windows, web]
+    needs: [linux, android, windows, web, packages]
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -452,12 +458,31 @@ jobs:
           pattern: halo-*
           path: artifacts
 
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          path: packages
+          merge-multiple: true
+
       - name: Package
         run: |
           mkdir release
           for build in artifacts/*/; do
             name="$(basename "$build")"
             (cd "$build" && zip -qr "$GITHUB_WORKSPACE/release/$name.zip" .)
+          done
+          # The AppImages and Flatpaks, named by the port they package:
+          # halo-linux-x86_64 (the 32-bit x86 game), halo-linux-arm64 (the
+          # host and guest) and halo-linux-armv7 (32-bit ARM; no Flatpak).
+          for package in packages/*; do
+            file="$(basename "$package")"
+            case "$file" in
+              OpenCE-x86_64.*) name="halo-linux-x86_64.${file#OpenCE-x86_64.}" ;;
+              OpenCE-aarch64.*) name="halo-linux-arm64.${file#OpenCE-aarch64.}" ;;
+              OpenCE-armv7.*) name="halo-linux-armv7.${file#OpenCE-armv7.}" ;;
+              *) echo "::error::unexpected package $file"; exit 1 ;;
+            esac
+            cp "$package" "release/$name"
           done
           python3 tools/ci_build.py sums release
           ls -l release
