@@ -45,9 +45,14 @@ jobs:
           cmake --build "$RUNNER_TEMP/SDL/build" -j"$(nproc)"
           cmake --install "$RUNNER_TEMP/SDL/build"
           echo "PKG_CONFIG_PATH=$GITHUB_WORKSPACE/sdl-prefix/lib/pkgconfig" >> "$GITHUB_ENV"
+      # A build of main knows its number, which names its release and which
+      # the game shows (tools/ci_build.py does the same for the x86_64 build)
+      - name: Build number
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: echo "HALO_BUILD_NUMBER=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
       - name: Build the game
         run: |
-          python3 configure.py --guest-lld-bin /usr/bin
+          python3 configure.py --guest-lld-bin /usr/bin --release
           ninja linux_arm64_guest linux_arm64_host
       - name: Collect the binaries
         run: |
@@ -82,9 +87,14 @@ jobs:
           cmake -S "$RUNNER_TEMP/SDL" -B "$RUNNER_TEMP/SDL/build" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="$GITHUB_WORKSPACE/tools/linux_armv7.cmake" -DHALO_SYSROOT="$RUNNER_TEMP/armhf" -DCMAKE_C_COMPILER=clang -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/armhf/usr" -DCMAKE_INSTALL_LIBDIR=lib/arm-linux-gnueabihf
           cmake --build "$RUNNER_TEMP/SDL/build" -j"$(nproc)"
           sudo cmake --install "$RUNNER_TEMP/SDL/build"
+      # A build of main knows its number, which names its release and which
+      # the game shows (tools/ci_build.py does the same for the x86_64 build)
+      - name: Build number
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: echo "HALO_BUILD_NUMBER=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
       - name: Build the game
         run: |
-          python3 configure.py --linux-arch armv7 --linux-sysroot "$RUNNER_TEMP/armhf" --lto=off --pgo=off
+          python3 configure.py --linux-arch armv7 --linux-sysroot "$RUNNER_TEMP/armhf" --lto=off --pgo=off --release
           ninja linux_armv7
       - name: Collect the binaries
         run: |

@@ -225,3 +225,12 @@ def test_release_publishes_packages():
                    "halo-linux-x86_64", "halo-linux-arm64", "halo-linux-armv7"):
         assert needle in text
     assert "workflow_call" in (ROOT / ".github" / "workflows" / "linux-packages.yml").read_text()
+
+
+def test_release_builds_are_numbered_release_builds():
+    # the arm64 and armv7 packages are release builds (assertions off) and, on
+    # main, know their build number, as the x86_64 one does through ci_build.py
+    text = (ROOT / ".github" / "workflows" / "linux-packages.yml").read_text()
+    assert text.count("HALO_BUILD_NUMBER=$GITHUB_RUN_NUMBER") == 2
+    assert "configure.py --guest-lld-bin /usr/bin --release" in text
+    assert "--lto=off --pgo=off --release" in text
