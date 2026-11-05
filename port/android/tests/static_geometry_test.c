@@ -276,6 +276,57 @@ static int regions(void)
 	return 0;
 }
 
+static int stale_overlap(void)
+{
+	struct resource old_range = { 0, 0x20000, 0 }, new_range = { 0, 0x20800, 0 };
+
+	/* (a map's range left registered, and the next map's loaded across it: the
+	new one is the one that holds the memory's bytes) */
+	fill(window + 0x20000, 0x1000, 11);
+	xgpu_static_buffer_add(&old_range, 0x1000, 0);
+	CHECK(draw_reads((unsigned long)window + 0x20100, 0x40, FALSE));
+	fill(window + 0x20000, 0x2000, 12);
+	xgpu_static_buffer_add(&new_range, 0x1000, 0);
+	CHECK(static_buffer_lists[0].count == 1 && static_buffer_lists[0].entries[0].start == (unsigned long)window + 0x20800);
+	CHECK(static_buffers.doomed_count == 1);
+	CHECK(!draw_reads((unsigned long)window + 0x20100, 0x40, FALSE));
+	CHECK(draw_reads((unsigned long)window + 0x20900, 0x40, FALSE));
+	static_buffers_collect();
+	CHECK(deleted == 1);
+	return 0;
+}
+
+static int changed_bytes(void)
+{
+	struct resource range = { 0, 0x30000, 0 };
+	GLuint buffer;
+	unsigned long offset, first_serial, second_serial;
+
+	fill(window + 0x30000, 0x2000, 1);
+	xgpu_static_buffer_add(&range, 0x2000, 0);
+	CHECK(static_buffer_range((unsigned long)window + 0x30000, 0x2000, FALSE, &buffer, &offset, &first_serial));
+	/* (nothing changed: nothing happens) */
+	static_buffers_verify(10);
+	CHECK(uploads == 1 && static_buffers.doomed_count == 0 && logs == 0);
+	/* (a few words the game wrote: noted, the buffer stays) */
+	window[0x30000] ^= 0xff;
+	static_buffers_verify(11);
+	CHECK(uploads == 1 && static_buffers.doomed_count == 0 && logs == 1);
+	static_buffers_verify(12);
+	CHECK(static_buffers.doomed_count == 0 && logs == 1);
+	/* (another map's bytes in the same place: the buffer goes, and the next
+	draw makes one from what the memory holds now, under a new serial) */
+	fill(window + 0x30000, 0x2000, 2);
+	static_buffers_verify(13);
+	CHECK(static_buffers.doomed_count == 1 && logs == 2);
+	CHECK(static_buffer_range((unsigned long)window + 0x30000, 0x2000, FALSE, &buffer, &offset, &second_serial));
+	CHECK(second_serial != first_serial && uploads == 2);
+	CHECK(draw_reads((unsigned long)window + 0x30100, 0x40, FALSE));
+	static_buffers_verify(14);
+	CHECK(uploads == 2 && logs == 2);
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc != 2)
@@ -305,5 +356,9 @@ int main(int argc, char **argv)
 		return allocation_failure();
 	if (!strcmp(argv[1], "regions"))
 		return regions();
+	if (!strcmp(argv[1], "stale_overlap"))
+		return stale_overlap();
+	if (!strcmp(argv[1], "changed_bytes"))
+		return changed_bytes();
 	return 2;
 }
