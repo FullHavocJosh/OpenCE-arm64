@@ -147,6 +147,8 @@ def _check_flatpak_common(manifest):
     assert manifest["sdk"] == "org.freedesktop.Sdk"
     assert manifest["command"] == "opence"
     assert "--filesystem=xdg-data/halo:create" in manifest["finish-args"]
+    # (multiplayer and the other online features need the network)
+    assert "--share=network" in manifest["finish-args"]
     (module,) = manifest["modules"]
     assert module["name"] == "opence"
     assert module["buildsystem"] == "simple"

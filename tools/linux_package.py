@@ -182,6 +182,10 @@ def flatpak_manifest(arch, bin_dir):
             "--socket=pulseaudio",
             "--device=all",
             "--share=ipc",
+            # (multiplayer, the server browser, map sharing and UPnP need it:
+            # without it the sandbox has no network and the game says the
+            # System Link cable may be disconnected)
+            "--share=network",
             "--filesystem=xdg-data/halo:create",
         ],
         "modules": [

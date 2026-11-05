@@ -186,11 +186,11 @@ the video driver yourself.
 Each release (`build-N`, on the GitHub releases page) has the Linux game as
 packages as well as the zip:
 
-| File | Game | Runs on |
-|---|---|---|
-| `halo-linux-x86_64.AppImage`, `halo-linux-x86_64.flatpak` | the 32-bit x86 game (this port) | x86_64 computers, the Steam Deck |
-| `halo-linux-arm64.AppImage`, `halo-linux-arm64.flatpak` | the arm64 host and guest ([port/linux-arm64](../linux-arm64/README.md)) | 64-bit ARM Linux |
-| `halo-linux-armv7.AppImage` | the 32-bit ARM game ([port/linux-armv7](../linux-armv7/README.md)) | 32-bit ARM Linux; no Flatpak |
+| File                                                      | Game                                                                    | Runs on                          |
+| --------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------- |
+| `halo-linux-x86_64.AppImage`, `halo-linux-x86_64.flatpak` | the 32-bit x86 game (this port)                                         | x86_64 computers, the Steam Deck |
+| `halo-linux-arm64.AppImage`, `halo-linux-arm64.flatpak`   | the arm64 host and guest ([port/linux-arm64](../linux-arm64/README.md)) | 64-bit ARM Linux                 |
+| `halo-linux-armv7.AppImage`                               | the 32-bit ARM game ([port/linux-armv7](../linux-armv7/README.md))      | 32-bit ARM Linux; no Flatpak     |
 
 `SHA256SUMS` in the release has the checksum of each file.
 
@@ -227,11 +227,11 @@ game" for the disc image that the game asks for at the first start).
 The AppImage brings its own SDL3 and uses the libraries and the glibc of the
 computer. The oldest glibc that each one needs (measured from the files):
 
-| AppImage | glibc |
-|---|---|
-| x86_64 | 2.29 (32-bit) |
-| arm64 | 2.38 |
-| armv7 | 2.38 (32-bit ARM) |
+| AppImage | glibc             |
+| -------- | ----------------- |
+| x86_64   | 2.29 (32-bit)     |
+| arm64    | 2.38              |
+| armv7    | 2.38 (32-bit ARM) |
 
 The x86_64 AppImage also needs the 32-bit libraries of "Requirements". The
 arm64 AppImage needs the computer's OpenGL ES and EGL libraries
@@ -269,7 +269,8 @@ none:
 Start it with `flatpak run io.github.fullhavocjosh.OpenCE`. The game data
 folder is `~/.local/share/halo` here too (the package may read and write
 only that folder of your home); the saved games and the shader cache are in
-`~/.var/app/io.github.fullhavocjosh.OpenCE/data/halo-linux`.
+`~/.var/app/io.github.fullhavocjosh.OpenCE/data/halo-linux`. The package has
+network access, for multiplayer and the game's other online features.
 
 `GL32.default` has the 32-bit Mesa drivers (AMD, Intel, software OpenGL). To
 draw with an NVIDIA GPU, install the 32-bit extension of the NVIDIA driver
