@@ -262,3 +262,12 @@ def test_release_needs_every_package():
                  "halo-linux-arm64.flatpak", "halo-linux-armv7.AppImage"):
         assert name in text
     assert "the release has no" in text
+
+
+def test_armv7_sdl_is_built_with_wayland():
+    # SDL leaves Wayland out ("Failed to get wayland-scanner version") unless the
+    # build computer has wayland-scanner and the armhf root has the protocols
+    for name in ("build.yml", "linux-packages.yml"):
+        text = (ROOT / ".github" / "workflows" / name).read_text()
+        assert "binfmt-support libwayland-bin" in text
+        assert "wayland-protocols libdecor-0-dev" in text
