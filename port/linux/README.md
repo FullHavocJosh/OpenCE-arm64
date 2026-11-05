@@ -257,10 +257,27 @@ folder is `~/.local/share/halo` here too (the package may read and write
 only that folder of your home); the saved games and the shader cache are in
 `~/.var/app/io.github.fullhavocjosh.OpenCE/data/halo-linux`.
 
-`GL32.default` has the 32-bit Mesa drivers (AMD, Intel, software OpenGL). A
-computer with an NVIDIA GPU needs the 32-bit extension of the NVIDIA driver
-that is installed (`org.freedesktop.Platform.GL32.nvidia-...`) to draw with
-that GPU. This is not tested.
+`GL32.default` has the 32-bit Mesa drivers (AMD, Intel, software OpenGL). To
+draw with an NVIDIA GPU, install the 32-bit extension of the NVIDIA driver
+that is installed too. Its name has the version of the driver (`nvidia-smi`
+says it), for example:
+
+    flatpak install --user flathub org.freedesktop.Platform.GL32.nvidia-595-112-07//1.4
+
+On a computer with an integrated GPU as well, the game still draws on the
+integrated one. To use the NVIDIA GPU, start it with two environment
+variables:
+
+    flatpak run --env=__NV_PRIME_RENDER_OFFLOAD=1 --env=__GLX_VENDOR_LIBRARY_NAME=nvidia io.github.fullhavocjosh.OpenCE
+
+The AppImage of an NVIDIA computer uses the 32-bit libraries of the NVIDIA
+driver that the computer has (the part of the driver for 32-bit programs; a
+64-bit driver alone is not enough) and the same two variables:
+
+    __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ./halo-linux-x86_64.AppImage
+
+Both draw on a GeForce RTX 4090 Laptop GPU with driver 595.112.07 this way
+("OpenGL 4.5.0 NVIDIA 595.112.07").
 
 ### Updates
 
@@ -273,8 +290,9 @@ check on. Refer to "Updates".
 The packages were started on a Steam Deck OLED (SteamOS 3.9.5; the x86_64
 AppImage and Flatpak), a Retroid Pocket Nova (Armada; the arm64 AppImage and
 Flatpak) and a laptop with a Ryzen 9 7940HS (Nobara 44; the x86_64 AppImage
-and Flatpak), each for 30 seconds to the menus. The armv7 AppImage was only
-run under qemu-user (an armhf Debian container).
+and Flatpak), each for 30 seconds to the menus; the laptop's NVIDIA GPU too,
+as above. The armv7 AppImage was only run under qemu-user (an armhf Debian
+container).
 
 ## Files and folders
 
