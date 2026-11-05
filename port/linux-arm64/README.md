@@ -55,4 +55,11 @@ Run these with pytest from the `tools` folder:
 ## Packaging
 
 The Linux packages workflow builds an AppImage and a Flatpak of the game
-for Linux arm64 on version tags.
+for Linux arm64 (`halo-linux-arm64.AppImage` and `.flatpak`) as release
+builds. Every release of the `main` branch has them, and the manual run and
+the version tags build them too. Refer to
+[port/linux/README.md](../linux/README.md#appimage-and-flatpak-packages): the
+AppImage needs glibc 2.38 or later.
+
+`tools/ci_smoke.py` starts the host in CI with no window or game data and
+checks that it loads and quits at the missing data.

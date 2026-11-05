@@ -198,10 +198,20 @@ There is no armv7 Flatpak because the Flatpak runtime that the packages use
 (`org.freedesktop.Platform` 25.08) has no 32-bit ARM version.
 
 Take the file for the architecture of the computer: `uname -m` says `x86_64`,
-`aarch64` (arm64) or `armv7l`. A computer cannot start the other files. A
-64-bit ARM CPU may lack the 32-bit mode too: the Cortex-A510, A710, A715 and
-X3 cores of a Retroid Pocket Nova stop the armv7 AppImage with "Illegal
-instruction".
+`aarch64` (arm64) or `armv7l`. A computer cannot start the other files.
+
+The armv7 AppImage is for 32-bit ARM systems. A 64-bit ARM computer can run
+32-bit programs only if its CPU has the 32-bit mode (a Snapdragon 8 Gen 2 has
+it on its Cortex-A510 and A710 cores; `/sys/devices/system/cpu/aarch32_el0`
+lists them) and has 32-bit libraries (glibc, SDL3, Mesa), which many 64-bit
+distributions do not ship. The AppImage's own runtime, from the AppImage
+project, is built for ARMv6 and uses the old ARMv6 memory barrier
+(`mcr p15, 0, r0, c7, c10, 5`). A 64-bit kernel runs that only with its
+CP15 barrier emulation (`/proc/sys/abi/cp15_barrier`); without it the
+AppImage stops with "Illegal instruction" before the game starts, as on the
+Retroid Pocket Nova. The game's executable itself is ARMv7 and has no such
+instruction: refer to [port/linux-armv7](../linux-armv7/README.md) for running
+it from an armhf root.
 
 The game data is the same as for the zip: the folder that contains `maps/`,
 which the packages look for in `~/.local/share/halo` (refer to "Start the
@@ -291,8 +301,25 @@ The packages were started on a Steam Deck OLED (SteamOS 3.9.5; the x86_64
 AppImage and Flatpak), a Retroid Pocket Nova (Armada; the arm64 AppImage and
 Flatpak) and a laptop with a Ryzen 9 7940HS (Nobara 44; the x86_64 AppImage
 and Flatpak), each for 30 seconds to the menus; the laptop's NVIDIA GPU too,
-as above. The armv7 AppImage was only run under qemu-user (an armhf Debian
-container).
+as above. The armv7 game was started on the Retroid Pocket's own CPU
+(32-bit mode, an armhf Debian container; not the AppImage, whose runtime
+stops there) with Wayland and the Adreno GPU, and under qemu-user. The
+armv7 AppImage itself has not run on any computer.
+
+### Checks in CI
+
+What the workflows check, so that a package that does not start fails in CI
+and not for a user (`tools/ci_smoke.py`, `tools/check_glibc.py`):
+
+- The x86_64 (release and debug), arm64 and armv7 builds are started with no
+  window, sound, update check or game data, and their log of the start-up must
+  show that they loaded and reserved their memory (the armv7 build runs under
+  qemu-user).
+- The glibc that each AppImage's files need must not be newer than the table
+  above says.
+- Each Flatpak is installed and its program run in the sandbox (`ldd`): the
+  loader, the extension mount points and the libraries are there.
+- A release is not published without all five packages.
 
 ## Files and folders
 
