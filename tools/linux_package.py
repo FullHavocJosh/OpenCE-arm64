@@ -197,7 +197,7 @@ def flatpak_manifest(arch, bin_dir):
             "org.freedesktop.Platform.GL32": {
                 "directory": "lib/i386-linux-gnu/GL",
                 "version": "25.08",
-                "versions": "25.08;25.08-extra",
+                "versions": "25.08;25.08-extra;1.4",
                 "subdirectories": True,
                 "autodelete": False,
                 "no-autodownload": True,

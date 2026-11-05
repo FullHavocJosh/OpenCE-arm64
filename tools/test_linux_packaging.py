@@ -167,6 +167,9 @@ def test_flatpak_manifest_x86_64(tmp_path):
     assert ext["org.freedesktop.Platform.GL32"]["directory"] == "lib/i386-linux-gnu/GL"
     assert ext["org.freedesktop.Platform.GL32"]["no-autodownload"] is True
     assert ext["org.freedesktop.Platform.GL32"]["add-ld-path"] == "lib"
+    # (the NVIDIA driver's 32-bit extension is on branch 1.4: without it in
+    # the list it is not mounted and the game draws on the other GPU)
+    assert "1.4" in ext["org.freedesktop.Platform.GL32"]["versions"].split(";")
     assert "--allow=multiarch" in manifest["finish-args"]
 
 
