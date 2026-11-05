@@ -293,3 +293,6 @@ def test_package_jobs_start_the_appimage_itself():
     assert "--platform linux/386" in text and "--platform linux/arm/v7" in text
     for name in ("OpenCE-x86_64.AppImage", "OpenCE-armv7.AppImage", "OpenCE-aarch64.AppImage"):
         assert name + " --appimage-extract-and-run" in text
+    # (binfmt does not run an AppImage under qemu: the "AI\x02" marker is in the ELF header's zero bytes)
+    assert "qemu-arm-static /pkg/OpenCE-armv7.AppImage --appimage-extract-and-run" in text
+    assert "apt-get install -y libgles2 libegl1" in text

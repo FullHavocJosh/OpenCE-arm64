@@ -198,7 +198,10 @@ jobs:
       # The AppImage itself started (tools/ci_smoke.py): its runtime unpacks it,
       # AppRun starts the host, which must load its libraries
       - name: Start the AppImage
-        run: python3 tools/ci_smoke.py --seconds 120 --no-defaults --require "Halo for Linux starting" -- ./OpenCE-aarch64.AppImage --appimage-extract-and-run
+        run: |
+          # (the host links the system's OpenGL ES and EGL; a desktop has them with Mesa)
+          sudo apt-get install -y libgles2 libegl1
+          python3 tools/ci_smoke.py --seconds 120 --no-defaults --require "Halo for Linux starting" -- ./OpenCE-aarch64.AppImage --appimage-extract-and-run
       - name: Pack the Flatpak
         run: python3 tools/linux_package.py flatpak --arch aarch64 --bin-dir bin --out OpenCE-aarch64.flatpak
       # The package run in its sandbox, with no display: the loader and the
@@ -302,13 +305,17 @@ jobs:
       # The AppImage itself started, in an armhf container (qemu-user runs it):
       # its runtime unpacks it, AppRun starts the game, which must find its
       # bundled SDL3 and reach its start-up log (tools/ci_smoke.py). The first
-      # armv7 AppImage had no library path, and died here
+      # armv7 AppImage had no library path, and died here. qemu-arm-static is
+      # named because binfmt would not run the AppImage itself: the format puts
+      # "AI\x02" in the ELF header bytes 8 to 10, which qemu's rule wants zero
+      # (a real ARM kernel ignores them)
       - name: Start the AppImage
         run: |
           sudo apt-get install -y qemu-user-static binfmt-support
           python3 tools/ci_smoke.py --seconds 300 -- docker run --rm --platform linux/arm/v7 -v "$PWD":/pkg:ro \
+            -v /usr/bin/qemu-arm-static:/usr/bin/qemu-arm-static:ro \
             -e SDL_VIDEODRIVER=dummy -e SDL_AUDIODRIVER=dummy -e HALO_UPDATE_AUTO=false -e HALO_DATA_ROOT=/tmp/data debian:trixie \
-            sh -c 'mkdir -p /tmp/data && cd /tmp/data && timeout 240 /pkg/OpenCE-armv7.AppImage --appimage-extract-and-run'
+            sh -c 'mkdir -p /tmp/data && cd /tmp/data && timeout 240 qemu-arm-static /pkg/OpenCE-armv7.AppImage --appimage-extract-and-run'
       - uses: actions/upload-artifact@v6
         with:
           name: packages-armv7

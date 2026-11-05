@@ -232,7 +232,10 @@ computer. The oldest glibc that each one needs (measured from the files):
 | arm64 | 2.38 |
 | armv7 | 2.38 (32-bit ARM) |
 
-The x86_64 AppImage also needs the 32-bit libraries of "Requirements".
+The x86_64 AppImage also needs the 32-bit libraries of "Requirements". The
+arm64 AppImage needs the computer's OpenGL ES and EGL libraries
+(`libGLESv2.so.2` and `libEGL.so.1`, which Mesa provides); the others load
+theirs when they start.
 
 The AppImage is read-only, so the game keeps its files outside it:
 `~/.local/share/halo` is the data folder and has `config.toml` (`paths.data`
