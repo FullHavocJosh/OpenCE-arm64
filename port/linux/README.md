@@ -181,6 +181,101 @@ window through XWayland (X11), where the 32-bit driver draws, unless a
 driver ..."). `SDL_VIDEO_DRIVER=wayland` or `SDL_VIDEO_DRIVER=x11` chooses
 the video driver yourself.
 
+## AppImage and Flatpak packages
+
+Each release (`build-N`, on the GitHub releases page) has the Linux game as
+packages as well as the zip:
+
+| File | Game | Runs on |
+|---|---|---|
+| `halo-linux-x86_64.AppImage`, `halo-linux-x86_64.flatpak` | the 32-bit x86 game (this port) | x86_64 computers, the Steam Deck |
+| `halo-linux-arm64.AppImage`, `halo-linux-arm64.flatpak` | the arm64 host and guest ([port/linux-arm64](../linux-arm64/README.md)) | 64-bit ARM Linux |
+| `halo-linux-armv7.AppImage` | the 32-bit ARM game ([port/linux-armv7](../linux-armv7/README.md)) | 32-bit ARM Linux; no Flatpak |
+
+`SHA256SUMS` in the release has the checksum of each file.
+
+There is no armv7 Flatpak because the Flatpak runtime that the packages use
+(`org.freedesktop.Platform` 25.08) has no 32-bit ARM version.
+
+Take the file for the architecture of the computer: `uname -m` says `x86_64`,
+`aarch64` (arm64) or `armv7l`. A computer cannot start the other files. A
+64-bit ARM CPU may lack the 32-bit mode too: the Cortex-A510, A710, A715 and
+X3 cores of a Retroid Pocket Nova stop the armv7 AppImage with "Illegal
+instruction".
+
+The game data is the same as for the zip: the folder that contains `maps/`,
+which the packages look for in `~/.local/share/halo` (refer to "Start the
+game" for the disc image that the game asks for at the first start).
+
+### AppImage
+
+1. Enter `chmod +x halo-linux-x86_64.AppImage` (a download does not keep the
+   execute permission).
+2. Start it.
+
+The AppImage brings its own SDL3 and uses the libraries and the glibc of the
+computer. The oldest glibc that each one needs (measured from the files):
+
+| AppImage | glibc |
+|---|---|
+| x86_64 | 2.29 (32-bit) |
+| arm64 | 2.38 |
+| armv7 | 2.38 (32-bit ARM) |
+
+The x86_64 AppImage also needs the 32-bit libraries of "Requirements".
+
+The AppImage is read-only, so the game keeps its files outside it:
+`~/.local/share/halo` is the data folder and has `config.toml` (`paths.data`
+and the environment variable `HALO_DATA_ROOT` name another folder;
+`HALO_CONFIG_FILE` names another settings file). The saved games are in
+`~/.local/share/halo-linux`.
+
+If AppImageLauncher is installed, it asks about every AppImage that you start,
+and it cannot start the AppImage of another architecture. Answer its
+question, or enter `APPIMAGELAUNCHER_DISABLE=1 ./halo-linux-x86_64.AppImage`.
+
+### Flatpak
+
+The runtime `org.freedesktop.Platform` 25.08 comes from Flathub:
+
+    flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+Installing a bundle file does not install the extensions that an app uses.
+The x86_64 package is a 32-bit game and needs two, so install them first:
+
+    flatpak install --user flathub org.freedesktop.Platform.Compat.i386//25.08 org.freedesktop.Platform.GL32.default//25.08
+    flatpak install --user halo-linux-x86_64.flatpak
+
+Without them the game stops with "cannot execute: required file not found".
+Removing the app removes these extensions with it. The arm64 package needs
+none:
+
+    flatpak install --user halo-linux-arm64.flatpak
+
+Start it with `flatpak run io.github.fullhavocjosh.OpenCE`. The game data
+folder is `~/.local/share/halo` here too (the package may read and write
+only that folder of your home); the saved games and the shader cache are in
+`~/.var/app/io.github.fullhavocjosh.OpenCE/data/halo-linux`.
+
+`GL32.default` has the 32-bit Mesa drivers (AMD, Intel, software OpenGL). A
+computer with an NVIDIA GPU needs the 32-bit extension of the NVIDIA driver
+that is installed (`org.freedesktop.Platform.GL32.nvidia-...`) to draw with
+that GPU. This is not tested.
+
+### Updates
+
+The packages do not look for updates (an AppImage cannot write to itself, and
+`flatpak update` updates a Flatpak). Set `HALO_UPDATE_AUTO=true` to turn the
+check on. Refer to "Updates".
+
+### Tested
+
+The packages were started on a Steam Deck OLED (SteamOS 3.9.5; the x86_64
+AppImage and Flatpak), a Retroid Pocket Nova (Armada; the arm64 AppImage and
+Flatpak) and a laptop with a Ryzen 9 7940HS (Nobara 44; the x86_64 AppImage
+and Flatpak), each for 30 seconds to the menus. The armv7 AppImage was only
+run under qemu-user (an armhf Debian container).
+
 ## Files and folders
 
 | Xbox drive | Folder                                                                                                        |
@@ -736,7 +831,8 @@ certificate store of Windows (WinHTTP). The folder of the executable must
 let the game write to it.
 
 Builds that you make yourself have no build number. They do not look for
-updates.
+updates. The AppImages and Flatpaks do not look either, because they cannot
+apply an update: refer to "AppImage and Flatpak packages".
 
 ## Frame rate
 

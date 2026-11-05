@@ -133,6 +133,13 @@ def test_tag_cache_script_matches_the_window():
     assert f". += 0x{size:x};" in script
 
 
+def test_ci_runs_the_fenv_test():
+    workflow = (ROOT / ".github" / "workflows" / "build.yml").read_text()
+    assert "port/linux-armv7/tests/fenv_test.c" in workflow
+    assert "qemu-arm-static" in workflow
+    assert (ROOT / "port" / "linux-armv7" / "tests" / "fenv_test.c").is_file()
+
+
 def test_armv7_outputs_and_target():
     text = graph(linux_arch="armv7")
     assert "build/linux-armv7/halo" in text

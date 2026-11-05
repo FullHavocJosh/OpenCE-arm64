@@ -259,6 +259,17 @@ jobs:
           python3 configure.py --linux-arch armv7 --linux-sysroot "$RUNNER_TEMP/armhf" --lto=off --pgo=off
           ninja linux_armv7
 
+      # The rounding mode and exception flags the game sets and reads
+      # (msvc_crt.c), checked on the VFP unit as qemu-user emulates it: the
+      # test is linked statically with the build's own msvc_crt.o
+      - name: Test the floating-point control
+        run: |
+          clang --target=armv7-linux-gnueabihf -march=armv7-a -mfpu=vfpv3-d16 -mfloat-abi=hard \
+            --sysroot="$RUNNER_TEMP/armhf" -O0 -static -fuse-ld=lld -Wl,-z,muldefs \
+            -Wl,--unresolved-symbols=ignore-all port/linux-armv7/tests/fenv_test.c \
+            build/linux-armv7/obj/port/linux/src/msvc_crt.o -lm -o "$RUNNER_TEMP/fenv_test"
+          qemu-arm-static "$RUNNER_TEMP/fenv_test"
+
       - name: Test
         run: python3 -m pytest -q tools/test_linux_armv7_build.py
 
@@ -514,7 +525,7 @@ jobs:
           # (the network version, which a dedicated server's server.auto_update
           # reads: a new one is started once the game being played is over)
           network_version="$(sed -n 's/^#define HALO_PORT_NETWORK_VERSION \([0-9]*\).*/\1/p' port/linux/include/halo_port_limits.h)"
-          printf '%s\n\nCommit: %s\nBuild: %s\nNetwork version: %s\n\nThe release builds are for playing; the debug builds stop at the first failed assertion and log it.\n' \
+          printf '%s\n\nCommit: %s\nBuild: %s\nNetwork version: %s\n\nThe release builds are for playing; the debug builds stop at the first failed assertion and log it.\n\nThe Linux AppImages and Flatpaks are the halo-linux-* files with those extensions. port/linux/README.md ("AppImage and Flatpak packages") says how to start them; the x86_64 Flatpak needs two extensions installed first.\n' \
             "$subject" "$COMMIT_URL" "$RUN_URL" "$network_version" > notes.md
           gh release create "$tag" release/* --target "$GITHUB_SHA" --latest \
             --title "Build $GITHUB_RUN_NUMBER (${GITHUB_SHA:0:7})" --notes-file notes.md
