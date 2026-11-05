@@ -1,5 +1,6 @@
 """Checks the Linux packages' desktop entry and AppStream metadata."""
 
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -255,7 +256,8 @@ def test_package_jobs_check_what_they_pack():
 
 
 def test_readme_gives_the_glibc_floors_the_ci_checks():
-    readme = (ROOT / "port" / "linux" / "README.md").read_text()
+    # (the table's cells may be padded to line up: spaces count once)
+    readme = re.sub(r" {2,}", " ", (ROOT / "port" / "linux" / "README.md").read_text())
     for row in ("| x86_64 | 2.29 (32-bit) |", "| arm64 | 2.38 |", "| armv7 | 2.38 (32-bit ARM) |"):
         assert row in readme
 
