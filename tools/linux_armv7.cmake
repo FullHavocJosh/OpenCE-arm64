@@ -1,6 +1,6 @@
 # tools/linux_armv7.cmake: SDL3 for the armv7 build. CMake toolchain of the
-# portable Linux armv7 build's SDL3: clang for 32-bit ARM (armhf, hard float),
-# against an armhf system root, given as -DHALO_SYSROOT=<folder>. The libraries
+# portable Linux armv7 build's SDL3: clang for 32-bit ARM (AArch32: ARMv7-A,
+# armhf, hard float), against an armhf system root, given as -DHALO_SYSROOT=<folder>. The libraries
 # SDL finds there it loads when it starts (dlopen), by the names it reads
 # from them.
 set(CMAKE_SYSTEM_NAME Linux)

@@ -1,9 +1,9 @@
 """Ninja rules for the guest image of the native Linux arm64 port.
 
-The native Linux arm64 port runs the game as the same ILP32 AArch64 guest
-image as the Android port (tools/guest_build.py), but built and linked with
-the machine's own clang, ld.lld and llvm-ar, and with Khronos's OpenGL ES
-headers: no Android code, and no NDK. This graph builds
+The native Linux arm64 port is an AArch64 host with an ILP32 guest, built from
+the Android port: the guest is the same ILP32 AArch64 image (tools/guest_build.py),
+but built and linked with the machine's own clang, ld.lld and llvm-ar, and with
+Khronos's OpenGL ES headers: no Android code, and no NDK. This graph builds
 build/linux-arm64/halo_guest.elf; ``ninja linux_arm64_guest``.
 """
 

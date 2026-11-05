@@ -200,6 +200,17 @@ There is no armv7 Flatpak because the Flatpak runtime that the packages use
 Take the file for the architecture of the computer: `uname -m` says `x86_64`,
 `aarch64` (arm64) or `armv7l`. A computer cannot start the other files.
 
+The names of the two ARM builds:
+
+| Name here | What it is                                                | `uname -m` | Debian, Flatpak | Built from         |
+| --------- | --------------------------------------------------------- | ---------- | --------------- | ------------------ |
+| arm64     | an AArch64 host with an ILP32 guest                       | `aarch64`  | arm64, aarch64  | the Android port   |
+| armv7     | the game as AArch32 code: ARMv7-A, hard float (VFPv3-D16) | `armv7l`   | armhf           | the x86 Linux port |
+
+AArch64 and AArch32 are the 64-bit and 32-bit execution states of an ARM CPU.
+armv7 names the instruction set the 32-bit build needs; a 64-bit CPU runs it
+in its AArch32 state.
+
 The armv7 AppImage is for 32-bit ARM systems. A 64-bit ARM computer can run
 32-bit programs only if its CPU has the 32-bit mode (a Snapdragon 8 Gen 2 has
 it on its Cortex-A510 and A710 cores; `/sys/devices/system/cpu/aarch32_el0`

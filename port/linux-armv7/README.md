@@ -5,15 +5,19 @@
 
 ## What it is
 
-The game is the same native 32-bit game as the x86 Linux build, compiled for
-armv7-linux-gnueabihf (hard float) with clang and lld. It uses the OpenGL ES
+The game as native 32-bit ARM (AArch32) code, in one process: there is no
+host and guest. It is the same 32-bit game as the x86 Linux build, compiled
+for ARMv7-A with hard-float VFPv3-D16 (`armv7-linux-gnueabihf`, which Debian
+calls armhf and `uname -m` calls `armv7l`) with clang and lld. On a 64-bit
+ARM CPU it runs in the CPU's 32-bit mode (AArch32). It uses the OpenGL ES
 renderer path (`HALO_GLES`) that the Android and web builds already use:
 OpenGL ES 3.2, with a fallback to 3.0, requested from the platform layer.
 SDL3 comes from the system root.
 
-The game's sources and the platform layer (`port/linux/src`) are shared with
-the other Linux builds; refer to [port/linux/README.md](../linux/README.md).
-The crash report records the ARM registers.
+This port is built from the x86 Linux port. The game's sources and the
+platform layer (`port/linux/src`) are shared with the other Linux builds;
+refer to [port/linux/README.md](../linux/README.md). The crash report
+records the ARM registers.
 
 ## Building
 
