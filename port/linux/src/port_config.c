@@ -1216,7 +1216,7 @@ static const struct config_setting config_settings[] =
 		"Flush the GPU's pipeline every this many draws: -1 for every 3 on Intel\n"
 		"graphics with Mesa's driver (which can hang without), 0 never." },
 	{ "debug.gpu_stats", _config_boolean, "false", "HALO_GPU_STATS", _environment_set_is_true, _platform_all,
-		"Log the renderer's draw counts once a second." },
+		"Log the renderer's draw counts once a second, and when a map's geometry buffers are made, replaced or released." },
 	{ "debug.frame_log", _config_boolean, "false", "HALO_FRAME_LOG", _environment_set_is_true, _platform_all,
 		"Log each frame that took much longer than the ones before it (its time split into the game's work, the swap and "
 		"the wait after it), a summary every 10 seconds, and when the server browser asks a master; each line has the "

@@ -16,6 +16,11 @@ typedef long GLsizeiptr;
 #define FALSE 0
 #define HALO_ANDROID 1
 static int halo_geometry_fixes = 1;
+/* debug.gpu_stats: the cache logs its map-sized events only with it */
+static struct
+{
+	int statistics;
+} debug_settings = { 1 };
 #define GL_NO_ERROR 0
 #define GL_OUT_OF_MEMORY 0x0505
 #define GL_ARRAY_BUFFER 0x8892
@@ -373,6 +378,30 @@ static int partial_overwrite(void)
 	return 0;
 }
 
+static int quiet_logs(void)
+{
+	struct resource old_range = { 0, 0x60000, 0 }, new_range = { 0, 0x60800, 0 };
+
+	/* (without debug.gpu_stats nothing is logged: not a map-sized range
+	registered, replaced, changed under its buffer or released) */
+	debug_settings.statistics = 0;
+	fill(window + 0x60000, 0x80000, 51);
+	xgpu_static_buffer_add(&old_range, 0x80000, 0);
+	CHECK(draw_reads((unsigned long)window + 0x60100, 0x40, FALSE));
+	xgpu_static_buffer_add(&new_range, 0x40000, 0);
+	CHECK(draw_reads((unsigned long)window + 0x60900, 0x40, FALSE));
+	fill(window + 0x60800, 0x40000, 52);
+	static_buffers_verify(3);
+	xgpu_static_buffer_remove(&new_range, 0);
+	CHECK(logs == 0);
+	/* (with it, the same events are) */
+	debug_settings.statistics = 1;
+	xgpu_static_buffer_add(&new_range, 0x40000, 0);
+	xgpu_static_buffer_remove(&new_range, 0);
+	CHECK(logs == 2);
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc != 2)
@@ -406,6 +435,8 @@ int main(int argc, char **argv)
 		return stale_overlap();
 	if (!strcmp(argv[1], "changed_bytes"))
 		return changed_bytes();
+	if (!strcmp(argv[1], "quiet_logs"))
+		return quiet_logs();
 	if (!strcmp(argv[1], "stale_cover"))
 		return stale_cover();
 	if (!strcmp(argv[1], "partial_overwrite"))

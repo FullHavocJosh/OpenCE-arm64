@@ -5696,7 +5696,7 @@ static BOOL static_buffer_forget(struct static_buffer_list *list, unsigned long 
 	if (!index || list->entries[index - 1].start != start)
 		return FALSE;
 	entry = &list->entries[index - 1];
-	if (entry->size >= STATIC_LOG_SIZE)
+	if (debug_settings.statistics && entry->size >= STATIC_LOG_SIZE)
 	{
 		platform_log("GPU: static %s range %08lx+%lu released (frame %lu, %lu left)",
 			list == &static_buffer_lists[1] ? "index" : "vertex", entry->start, entry->size, static_buffers.frame,
@@ -5737,8 +5737,11 @@ static void static_buffer_note(struct static_buffer_list *list, unsigned long st
 		unsigned long other = (index && list->entries[index - 1].start + list->entries[index - 1].size > start) ?
 			list->entries[index - 1].start : list->entries[index].start;
 
-		platform_log("GPU: static %s range %08lx+%lu replaces an older one at %08lx (frame %lu)",
-			list == &static_buffer_lists[1] ? "index" : "vertex", start, size, other, static_buffers.frame);
+		if (debug_settings.statistics)
+		{
+			platform_log("GPU: static %s range %08lx+%lu replaces an older one at %08lx (frame %lu)",
+				list == &static_buffer_lists[1] ? "index" : "vertex", start, size, other, static_buffers.frame);
+		}
 		static_buffer_forget(list, other);
 		index = static_buffer_upper(list, start);
 	}
@@ -5763,7 +5766,7 @@ static void static_buffer_note(struct static_buffer_list *list, unsigned long st
 	entry->sample_count = 0;
 	entry->frame = static_buffers.frame;
 	entry->retired = 0;
-	if (size >= STATIC_LOG_SIZE)
+	if (debug_settings.statistics && size >= STATIC_LOG_SIZE)
 	{
 		platform_log("GPU: static %s range %08lx+%lu registered (frame %lu, %lu in the list)",
 			list == &static_buffer_lists[1] ? "index" : "vertex", start, size, static_buffers.frame, list->count);
@@ -5810,7 +5813,7 @@ void xgpu_static_buffers_remove(const void *buffers, long count, unsigned long s
 {
 	unsigned long first = static_buffers_first(buffers, count, stride, indices != 0);
 
-	if (first && !static_buffer_forget(&static_buffer_lists[indices != 0], first) && count > 1)
+	if (first && !static_buffer_forget(&static_buffer_lists[indices != 0], first) && count > 1 && debug_settings.statistics)
 	{
 		/* (its range was covered by another's, or is not the one registered) */
 		platform_log("GPU: no static %s range starts at %08lx to release (frame %lu)", indices ? "index" : "vertex",
@@ -5885,9 +5888,12 @@ static void static_buffers_verify(unsigned long frame)
 				continue;
 			if (changed * 16 > count)
 			{
-				platform_log("GPU: static %s range %08lx+%lu holds other bytes than its buffer (%lu of %lu words): "
-					"uploaded again (frame %lu)", kind ? "index" : "vertex", entry->start, entry->size, changed, count,
-					frame);
+				if (debug_settings.statistics)
+				{
+					platform_log("GPU: static %s range %08lx+%lu holds other bytes than its buffer (%lu of %lu words): "
+						"uploaded again (frame %lu)", kind ? "index" : "vertex", entry->start, entry->size, changed,
+						count, frame);
+				}
 				static_buffer_doom(entry);
 				entry->sample_count = 0;
 				entry->failed = ++entry->retired > 3;
@@ -5895,7 +5901,7 @@ static void static_buffers_verify(unsigned long frame)
 			}
 			else
 			{
-				if (static_buffers.reports++ < 40)
+				if (debug_settings.statistics && static_buffers.reports++ < 40)
 				{
 					platform_log("GPU: static %s range %08lx+%lu changed in %lu of %lu sampled words (frame %lu)",
 						kind ? "index" : "vertex", entry->start, entry->size, changed, count, frame);
