@@ -209,10 +209,62 @@ jobs:
             OpenCE-aarch64.AppImage
             OpenCE-aarch64.flatpak
 
+  # The AppImage runtime for ARMv7. The one the AppImage project publishes
+  # (runtime-armhf) is built for ARMv6 and uses the ARMv6 memory barrier
+  # (mcr p15, 0, r0, c7, c10, 5), which a 64-bit kernel without CP15 barrier
+  # emulation traps: "Illegal instruction", before the game starts. The
+  # project builds it in an Alpine container for linux/arm/v6; this builds
+  # the same source, at the pinned commit, in the linux/arm/v7 one (qemu-user
+  # runs the container on the build computer). Cached: it changes only with
+  # the commit.
+  runtime-armv7:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      TYPE2_RUNTIME_COMMIT: fedfad51acc2860b2916a1eef32ba4a500ff31ef
+    steps:
+      - uses: actions/cache@v5
+        id: cache
+        with:
+          path: runtime-armhf
+          key: type2-runtime-armv7-${{ env.TYPE2_RUNTIME_COMMIT }}-1
+      - name: Install the tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static binfmt-support git llvm binutils
+      - name: Build the runtime
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/AppImage/type2-runtime.git "$RUNNER_TEMP/type2-runtime"
+          git -C "$RUNNER_TEMP/type2-runtime" checkout --detach "$TYPE2_RUNTIME_COMMIT"
+          sed -i 's#docker_platform=linux/arm/v6#docker_platform=linux/arm/v7#' "$RUNNER_TEMP/type2-runtime/scripts/docker/create-build-container.sh"
+          mkdir "$RUNNER_TEMP/out"
+          cd "$RUNNER_TEMP/out"
+          ARCH=armhf bash "$RUNNER_TEMP/type2-runtime/scripts/docker/build-with-docker.sh"
+          cp runtime-armhf "$GITHUB_WORKSPACE/runtime-armhf"
+      # ARMv7 code, and none of the ARMv6 barrier; and it starts
+      - name: Check the runtime
+        run: |
+          readelf -A runtime-armhf | awk '/Tag_CPU_arch/'
+          if ! readelf -A runtime-armhf | awk '/Tag_CPU_arch: v7/ { ok = 1 } END { exit !ok }'; then
+            echo "::error::the runtime is not built for ARMv7"
+            exit 1
+          fi
+          OBJDUMP="$(command -v llvm-objdump || ls /usr/lib/llvm-*/bin/llvm-objdump | tail -n 1)"
+          if "$OBJDUMP" -d runtime-armhf | awk '/mcr[ \t]+p15.*c7, c10, #0x5/ { bad = 1 } END { exit !bad }'; then
+            echo "::error::the runtime uses the ARMv6 memory barrier"
+            exit 1
+          fi
+          qemu-arm-static ./runtime-armhf --appimage-version
+      - uses: actions/upload-artifact@v6
+        with:
+          name: runtime-armv7
+          path: runtime-armhf
+
   # No armv7 Flatpak: the freedesktop 25.08 runtime has no 32-bit ARM arch.
   package-armv7:
     runs-on: ubuntu-24.04
-    needs: build-armv7
+    needs: [build-armv7, runtime-armv7]
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
@@ -225,10 +277,13 @@ jobs:
       # a build that needs a newer one fails here, not for a user
       - name: Check the glibc the files need
         run: python3 tools/check_glibc.py 2.38 bin/halo bin/libSDL3.so.0
-      - name: Download appimagetool and the armhf runtime
+      - uses: actions/download-artifact@v7
+        with:
+          name: runtime-armv7
+          path: .
+      - name: Download appimagetool
         run: |
           curl -fsSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
-          curl -fsSL -o runtime-armhf https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-armhf
           chmod +x appimagetool
       - name: Pack the AppImage
         run: python3 tools/linux_package.py appimage --arch armv7 --bin-dir bin --out OpenCE-armv7.AppImage --appimagetool ./appimagetool --runtime-file ./runtime-armhf

@@ -271,3 +271,15 @@ def test_armv7_sdl_is_built_with_wayland():
         text = (ROOT / ".github" / "workflows" / name).read_text()
         assert "binfmt-support libwayland-bin" in text
         assert "wayland-protocols libdecor-0-dev" in text
+
+
+def test_armv7_appimage_has_an_armv7_runtime():
+    text = (ROOT / ".github" / "workflows" / "linux-packages.yml").read_text()
+    # built from the project's source, pinned, in the ARMv7 container (its own armhf is ARMv6, whose
+    # memory barrier a 64-bit kernel without CP15 barrier emulation traps)
+    assert "TYPE2_RUNTIME_COMMIT: fedfad51acc2860b2916a1eef32ba4a500ff31ef" in text
+    assert "docker_platform=linux/arm/v7" in text
+    assert "Tag_CPU_arch: v7" in text and "c7, c10, #0x5" in text
+    assert "needs: [build-armv7, runtime-armv7]" in text
+    # and not downloaded as the ARMv6 one
+    assert "type2-runtime/releases/download/continuous/runtime-armhf" not in text
