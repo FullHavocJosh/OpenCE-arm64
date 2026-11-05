@@ -92,6 +92,8 @@ def test_appdir_armv7(tmp_path):
     apprun = (out / "AppRun").read_text()
     assert apprun.startswith("#!/bin/sh\n")
     assert 'exec "$HERE/usr/bin/halo" "$@"' in apprun
+    # (it must find the SDL3 beside it: the executable has no search path of its own)
+    assert 'LD_LIBRARY_PATH="$HERE/usr/bin' in apprun
 
 
 def test_pack_appimage_armv7(tmp_path, monkeypatch):
@@ -283,3 +285,11 @@ def test_armv7_appimage_has_an_armv7_runtime():
     assert "needs: [build-armv7, runtime-armv7]" in text
     # and not downloaded as the ARMv6 one
     assert "type2-runtime/releases/download/continuous/runtime-armhf" not in text
+
+
+def test_package_jobs_start_the_appimage_itself():
+    text = (ROOT / ".github" / "workflows" / "linux-packages.yml").read_text()
+    assert text.count("name: Start the AppImage") == 3
+    assert "--platform linux/386" in text and "--platform linux/arm/v7" in text
+    for name in ("OpenCE-x86_64.AppImage", "OpenCE-armv7.AppImage", "OpenCE-aarch64.AppImage"):
+        assert name + " --appimage-extract-and-run" in text

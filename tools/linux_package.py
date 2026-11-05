@@ -39,7 +39,11 @@ APPRUN_STATE = (
 )
 APPRUN = {
     "x86_64": APPRUN_HEAD + APPRUN_STATE + 'exec "$HERE/usr/bin/halo" "$@"\n',
-    "armv7": APPRUN_HEAD + APPRUN_STATE + 'exec "$HERE/usr/bin/halo" "$@"\n',
+    # (the armv7 executable has no search path of its own, unlike the x86_64 portable build's: its SDL3 is
+    # found beside it only through this)
+    "armv7": APPRUN_HEAD + APPRUN_STATE
+    + 'export LD_LIBRARY_PATH="$HERE/usr/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"\n'
+    + 'exec "$HERE/usr/bin/halo" "$@"\n',
     "aarch64": APPRUN_HEAD
     + 'export LD_LIBRARY_PATH="$HERE/usr/bin${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"\n'
     + 'export HALO_GUEST_ELF="$HERE/usr/bin/halo_guest.elf"\n'
