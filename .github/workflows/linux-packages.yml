@@ -73,14 +73,14 @@ jobs:
       - name: Install the toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang lld llvm ninja-build cmake pkg-config python3 curl git debootstrap qemu-user-static binfmt-support
+          sudo apt-get install -y clang lld llvm ninja-build cmake pkg-config python3 curl git debootstrap qemu-user-static binfmt-support libwayland-bin
       - uses: actions/checkout@v5
       - name: Make an armhf root
         run: |
           sudo debootstrap --foreign --arch=armhf --variant=minbase trixie "$RUNNER_TEMP/armhf" http://deb.debian.org/debian
           sudo cp /usr/bin/qemu-arm-static "$RUNNER_TEMP/armhf/usr/bin/"
           sudo chroot "$RUNNER_TEMP/armhf" /debootstrap/debootstrap --second-stage
-          sudo chroot "$RUNNER_TEMP/armhf" apt-get install -y --no-install-recommends libc6-dev libgcc-14-dev linux-libc-dev libgles-dev libegl-dev libgl-dev libx11-dev libxext-dev libxi-dev libxcursor-dev libxrandr-dev libxtst-dev libxss-dev libxkbcommon-dev libwayland-dev libdrm-dev libgbm-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev libffi-dev
+          sudo chroot "$RUNNER_TEMP/armhf" apt-get install -y --no-install-recommends libc6-dev libgcc-14-dev linux-libc-dev libgles-dev libegl-dev libgl-dev libx11-dev libxext-dev libxi-dev libxcursor-dev libxrandr-dev libxtst-dev libxss-dev libxkbcommon-dev libwayland-dev libdrm-dev libgbm-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev libffi-dev wayland-protocols libdecor-0-dev
       - name: Build SDL 3
         run: |
           git clone --depth 1 --branch release-3.4.16 https://github.com/libsdl-org/SDL.git "$RUNNER_TEMP/SDL"
@@ -117,6 +117,11 @@ jobs:
         with:
           name: bin-x86_64
           path: bin
+      # The oldest glibc the files need is the oldest computer the AppImage
+      # starts on (port/linux/README.md, "AppImage and Flatpak packages"):
+      # a build that needs a newer one fails here, not for a user
+      - name: Check the glibc the files need
+        run: python3 tools/check_glibc.py 2.29 bin/halo bin/libSDL3.so.0
       - name: Install the packaging tools
         run: |
           sudo apt-get update
@@ -133,6 +138,19 @@ jobs:
         run: python3 tools/linux_package.py appimage --arch x86_64 --bin-dir bin --out OpenCE-x86_64.AppImage --appimagetool ./appimagetool
       - name: Pack the Flatpak
         run: python3 tools/linux_package.py flatpak --arch x86_64 --bin-dir bin --out OpenCE-x86_64.flatpak
+      # The package run in its sandbox, with no display: the loader and the
+      # mount points of the extensions are there (/app/lib/i386-linux-gnu/GL), and the libraries
+      # the program names are found (the first x86_64 Flatpaks had no mount
+      # points, and the sandbox killed the 32-bit program's system calls)
+      - name: Check the Flatpak
+        run: |
+          flatpak install --user -y --bundle OpenCE-x86_64.flatpak
+          flatpak run --command=sh io.github.fullhavocjosh.OpenCE -c 'test -d /app/lib/i386-linux-gnu/GL && ldd /app/bin/halo' > ldd.txt
+          cat ldd.txt
+          if awk '/not found/ { missing = 1 } END { exit !missing }' ldd.txt; then
+            echo "::error::the program names libraries that the package does not have"
+            exit 1
+          fi
       - uses: actions/upload-artifact@v6
         with:
           name: packages-x86_64
@@ -150,6 +168,11 @@ jobs:
         with:
           name: bin-aarch64
           path: bin
+      # The oldest glibc the files need is the oldest computer the AppImage
+      # starts on (port/linux/README.md, "AppImage and Flatpak packages"):
+      # a build that needs a newer one fails here, not for a user
+      - name: Check the glibc the files need
+        run: python3 tools/check_glibc.py 2.38 bin/halo_host bin/libSDL3.so.0
       - name: Install the packaging tools
         run: |
           sudo apt-get update
@@ -166,6 +189,19 @@ jobs:
         run: python3 tools/linux_package.py appimage --arch aarch64 --bin-dir bin --out OpenCE-aarch64.AppImage --appimagetool ./appimagetool
       - name: Pack the Flatpak
         run: python3 tools/linux_package.py flatpak --arch aarch64 --bin-dir bin --out OpenCE-aarch64.flatpak
+      # The package run in its sandbox, with no display: the loader and the
+      # mount points of the extensions are there, and the libraries
+      # the program names are found (the first x86_64 Flatpaks had no mount
+      # points, and the sandbox killed the 32-bit program's system calls)
+      - name: Check the Flatpak
+        run: |
+          flatpak install --user -y --bundle OpenCE-aarch64.flatpak
+          flatpak run --command=sh io.github.fullhavocjosh.OpenCE -c 'ldd /app/bin/halo_host' > ldd.txt
+          cat ldd.txt
+          if awk '/not found/ { missing = 1 } END { exit !missing }' ldd.txt; then
+            echo "::error::the program names libraries that the package does not have"
+            exit 1
+          fi
       - uses: actions/upload-artifact@v6
         with:
           name: packages-aarch64
@@ -184,6 +220,11 @@ jobs:
         with:
           name: bin-armv7
           path: bin
+      # The oldest glibc the files need is the oldest computer the AppImage
+      # starts on (port/linux/README.md, "AppImage and Flatpak packages"):
+      # a build that needs a newer one fails here, not for a user
+      - name: Check the glibc the files need
+        run: python3 tools/check_glibc.py 2.38 bin/halo bin/libSDL3.so.0
       - name: Download appimagetool and the armhf runtime
         run: |
           curl -fsSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage

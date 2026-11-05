@@ -1,6 +1,7 @@
 """StageKit's tests' tools (README.md): build the generator, write a scenario's map, validate it, and play it.
 """
 
+import errno
 import os
 import re
 import shlex
@@ -159,8 +160,16 @@ def launch(machine, input, address, broadcast, test, init="", **environment):
                        HOME=str(machine), HALO_NETWORK_TEST=test, HALO_NET_ADDRESS=address,
                        HALO_NET_BROADCAST=broadcast, **environment)
     with open(machine / "game.log", "w") as log:
-        return subprocess.Popen([str(machine / "halo")], cwd=machine, env=environment, stdout=log,
-                                stderr=subprocess.STDOUT)
+        # (a copy of the game that another thread's fork still holds open for writing cannot be started yet:
+        # "Text file busy", for the moment until that child runs its own program)
+        for attempt in range(50):
+            try:
+                return subprocess.Popen([str(machine / "halo")], cwd=machine, env=environment, stdout=log,
+                                        stderr=subprocess.STDOUT)
+            except OSError as error:
+                if error.errno != errno.ETXTBSY or attempt == 49:
+                    raise
+                time.sleep(0.1)
 
 
 # the first tick every player has a unit, from which a scenario's seconds (and cues) count (network_test.c)

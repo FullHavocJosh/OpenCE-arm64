@@ -7,9 +7,12 @@ SDL3 window, draws a red triangle with OpenGL ES and exits.
 
 An experiment: can the game run as 32-bit ARM (AArch32) code natively on
 Linux arm64, the way the x86 Linux build runs as 32-bit code with `-m32`?
-This is a feasibility probe only. It builds no game code. The Linux arm64
-guest and host port in [port/linux-arm64](../linux-arm64/README.md) stays
-the supported route.
+This is a feasibility probe only. It builds no game code. The probe led to
+the armv7 build in [port/linux-armv7](../linux-armv7/README.md), which runs the
+game itself as 32-bit ARM code (it ran on the NovaDeck's cores in an armhf
+container). The Linux arm64 guest and host port in
+[port/linux-arm64](../linux-arm64/README.md) stays the supported route on a
+64-bit ARM computer.
 
 ## Why
 

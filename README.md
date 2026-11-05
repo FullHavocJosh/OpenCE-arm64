@@ -55,12 +55,26 @@ Builds for latest release:
 | Web | [halocombatevolved.com](https://halocombatevolved.com/) (or [halo-web-release.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-web-release.zip) for your own server) | [halo-web-debug.zip](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-web-debug.zip) | [Web](port/web/README.md) |
 
 
+The Linux game is also in packages for each architecture, as an AppImage
+and a Flatpak:
+
+| Computer | AppImage | Flatpak |
+| --- | --- | --- |
+| x86_64 (PCs, Steam Deck) | [halo-linux-x86_64.AppImage](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-linux-x86_64.AppImage) | [halo-linux-x86_64.flatpak](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-linux-x86_64.flatpak) |
+| 64-bit ARM (arm64) | [halo-linux-arm64.AppImage](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-linux-arm64.AppImage) | [halo-linux-arm64.flatpak](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-linux-arm64.flatpak) |
+| 32-bit ARM (armv7) | [halo-linux-armv7.AppImage](https://github.com/OpenCommunityEdition/OpenCE/releases/latest/download/halo-linux-armv7.AppImage) | none |
+
+They are release builds. The x86_64 Flatpak needs two extensions installed
+first, and an AppImage needs `chmod +x`: refer to "AppImage and Flatpak
+packages" in [port/linux/README.md](port/linux/README.md#appimage-and-flatpak-packages).
+
 Release build is recommended for regular play. 
 
 The debug build stops at the first failed check (assertion) and writes it to the log, so use it when you want to find and report problems.
 
-The game updates itself. At start-up it looks for a newer release, and asks
-if you want to install it. Refer to "Updates" in
+The game (the zip builds) updates itself. At start-up it looks for a newer
+release, and asks if you want to install it. The AppImages and Flatpaks do
+not: download the new file. Refer to "Updates" in
 [port/linux/README.md](port/linux/README.md#updates). The web site offers
 each new build when it is out.
 

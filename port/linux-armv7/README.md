@@ -55,16 +55,35 @@ window as a segment of its own, which the kernel maps before the loader runs
 
 `halo-linux-armv7.AppImage` is built by the Linux packages workflow, in the
 releases. There is no Flatpak: its runtime has no 32-bit ARM version. The
-AppImage needs glibc 2.38 or later and a CPU with the 32-bit (AArch32) mode;
-refer to [port/linux/README.md](../linux/README.md#appimage-and-flatpak-packages).
+AppImage needs glibc 2.38 or later and a 32-bit ARM system; refer to
+[port/linux/README.md](../linux/README.md#appimage-and-flatpak-packages) for
+the AppImage's runtime, which is built for ARMv6 and does not start on a 64-bit
+kernel without CP15 barrier emulation.
+
+To run the game on a 64-bit ARM computer that has the 32-bit mode but no armhf
+libraries, use an armhf root: for example a Debian 13 armhf container
+(`podman run --platform linux/arm/v7 debian:trixie`) with the libraries named
+under "Building" and `libwayland-client0`, `libwayland-egl1`,
+`libxkbcommon0` and Mesa's drivers (`libgl1-mesa-dri`, `libegl-mesa0`). Unpack
+the AppImage with `unsquashfs -o OFFSET` (the offset is the end of the ELF
+runtime at the start of the file) and start `usr/bin/halo` with the
+container's libraries, the Wayland socket and `/dev/dri`.
+
+SDL3 is built with Wayland and X11 support (the build needs
+`wayland-scanner` on the build computer, and `wayland-protocols` and
+`libdecor` in the armhf root: without them SDL leaves Wayland out and the game
+needs XWayland).
 
 ## Limits
 
 - No `--portable` build.
 - No PGO profile yet, so use `--pgo=off`.
-- Not tested on armv7 hardware. It starts under qemu-user (an armhf Debian
-  container, software OpenGL ES 3.2) to the menus. A 64-bit ARM CPU may lack
-  the 32-bit mode (the Cortex-A510, A710, A715 and X3 cores do).
+- Run on a 64-bit ARM CPU in its 32-bit mode (a Snapdragon 8 Gen 2, in an
+  armhf container, with Wayland and the Adreno GPU: OpenGL ES 3.2 and the
+  menus) and under qemu-user; not on a CPU that is 32-bit only (a Raspberry
+  Pi 3 or 4 with a 32-bit system, for example).
+- The AppImage's runtime does not start on a 64-bit kernel without CP15
+  barrier emulation ("Packages").
 - The game needs a GPU with OpenGL ES 3.0 or later.
 - Custom Edition maps are not tested on this build.
 
@@ -74,10 +93,15 @@ Run this with pytest from the `tools` folder:
 
 - `test_linux_armv7_build.py`: the build graph of the armv7 target.
 
+`tools/ci_smoke.py` starts the built game headless under `qemu-arm-static`, in
+the `linux-armv7` job, and checks its start-up log, among it that the Custom
+Edition window was reserved.
+
 `port/linux-armv7/tests/fenv_test.c` checks the floating-point control (the
 rounding modes and the exception flags) on the VFP unit. The `linux-armv7`
 job of the workflow links it with the build's `msvc_crt.o` and runs it with
-`qemu-arm-static`. To run it yourself, build `msvc_crt.o` with `ninja`, then
+`qemu-arm-static`; it also passes natively on a Snapdragon 8 Gen 2 (all 20
+checks, where the older code that only remembered the control word fails 10). To run it yourself, build `msvc_crt.o` with `ninja`, then
 link the test statically with it
 (`-static -Wl,-z,muldefs -Wl,--unresolved-symbols=ignore-all`) and run it on
 an armv7 machine or with `qemu-arm-static`.

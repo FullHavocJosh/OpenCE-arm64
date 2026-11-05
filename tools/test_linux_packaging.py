@@ -237,3 +237,37 @@ def test_release_builds_are_numbered_release_builds():
     assert text.count("HALO_BUILD_NUMBER=$GITHUB_RUN_NUMBER") == 2
     assert "configure.py --guest-lld-bin /usr/bin --release" in text
     assert "--lto=off --pgo=off --release" in text
+
+
+def test_package_jobs_check_what_they_pack():
+    text = (ROOT / ".github" / "workflows" / "linux-packages.yml").read_text()
+    # the glibc floors port/linux/README.md gives, for the three AppImages
+    assert "check_glibc.py 2.29 bin/halo bin/libSDL3.so.0" in text
+    assert "check_glibc.py 2.38 bin/halo_host bin/libSDL3.so.0" in text
+    assert "check_glibc.py 2.38 bin/halo bin/libSDL3.so.0" in text
+    # and the two Flatpaks run in their sandbox
+    assert text.count("name: Check the Flatpak") == 2
+    assert "test -d /app/lib/i386-linux-gnu/GL && ldd /app/bin/halo" in text
+
+
+def test_readme_gives_the_glibc_floors_the_ci_checks():
+    readme = (ROOT / "port" / "linux" / "README.md").read_text()
+    for row in ("| x86_64 | 2.29 (32-bit) |", "| arm64 | 2.38 |", "| armv7 | 2.38 (32-bit ARM) |"):
+        assert row in readme
+
+
+def test_release_needs_every_package():
+    text = (ROOT / ".github" / "workflows" / "build.yml").read_text()
+    for name in ("halo-linux-x86_64.AppImage", "halo-linux-x86_64.flatpak", "halo-linux-arm64.AppImage",
+                 "halo-linux-arm64.flatpak", "halo-linux-armv7.AppImage"):
+        assert name in text
+    assert "the release has no" in text
+
+
+def test_armv7_sdl_is_built_with_wayland():
+    # SDL leaves Wayland out ("Failed to get wayland-scanner version") unless the
+    # build computer has wayland-scanner and the armhf root has the protocols
+    for name in ("build.yml", "linux-packages.yml"):
+        text = (ROOT / ".github" / "workflows" / name).read_text()
+        assert "binfmt-support libwayland-bin" in text
+        assert "wayland-protocols libdecor-0-dev" in text
