@@ -5610,6 +5610,10 @@ struct static_buffer
 	map's bytes in the same place (static_buffers_verify) */
 	unsigned long sample_count;
 	unsigned long samples[STATIC_SAMPLES];
+	/* the frame it was registered in, and how often its buffer has been made
+	again because the memory changed under it */
+	unsigned long frame;
+	unsigned long retired;
 };
 
 /* sorted by start, one list of vertices (0) and one of indices (1); the
@@ -5711,9 +5715,14 @@ static void static_buffer_note(struct static_buffer_list *list, unsigned long st
 	static_buffer_forget(list, start);
 	index = static_buffer_upper(list, start);
 	/* (a bsp's vertices and lightmap vertices both run to its end: the one
-	that starts lower covers the other) */
-	if (index && list->entries[index - 1].start + list->entries[index - 1].size == start + size)
+	that starts lower covers the other. Both are registered in one load: a
+	range of an earlier frame that runs to the same end is the last map's, and
+	its bytes are gone) */
+	if (index && list->entries[index - 1].start + list->entries[index - 1].size == start + size &&
+		list->entries[index - 1].frame == static_buffers.frame)
+	{
 		return;
+	}
 	if (index < list->count && list->entries[index].start + list->entries[index].size == start + size)
 		static_buffer_forget(list, list->entries[index].start);
 	/* (a range that overlaps another: the loader says this memory holds new
@@ -5749,6 +5758,8 @@ static void static_buffer_note(struct static_buffer_list *list, unsigned long st
 	entry->failed = FALSE;
 	entry->serial = ++static_buffers.serial;
 	entry->sample_count = 0;
+	entry->frame = static_buffers.frame;
+	entry->retired = 0;
 	if (size >= STATIC_LOG_SIZE)
 	{
 		platform_log("GPU: static %s range %08lx+%lu registered (frame %lu, %lu in the list)",
@@ -5839,10 +5850,12 @@ static unsigned long static_buffer_sample(const struct static_buffer *entry, uns
 }
 
 /* Once a frame, before the swap: a range whose memory no longer holds what its
-buffer was filled with (more than half of the words sampled differ) is a map's
+buffer was filled with (more than a sixteenth of the words sampled differ: a
+smaller map's bytes cover only the start of a larger one's range) is a map's
 bytes replaced by another's with the range still registered: its buffer goes,
-and the next draw fills one from the memory as it is now. A few words changed
-is data the game writes into the tags; they are noted and left. */
+and the next draw fills one from the memory as it is now. A range that keeps
+changing is left to stream. A few words changed is data the game writes; they
+are noted and left. */
 static void static_buffers_verify(unsigned long frame)
 {
 	unsigned long kind, index, word, count, changed;
@@ -5867,14 +5880,14 @@ static void static_buffers_verify(unsigned long frame)
 			}
 			if (!changed)
 				continue;
-			if (changed * 2 > count)
+			if (changed * 16 > count)
 			{
 				platform_log("GPU: static %s range %08lx+%lu holds other bytes than its buffer (%lu of %lu words): "
 					"uploaded again (frame %lu)", kind ? "index" : "vertex", entry->start, entry->size, changed, count,
 					frame);
 				static_buffer_doom(entry);
 				entry->sample_count = 0;
-				entry->failed = FALSE;
+				entry->failed = ++entry->retired > 3;
 				entry->serial = ++static_buffers.serial;
 			}
 			else

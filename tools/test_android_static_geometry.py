@@ -55,7 +55,7 @@ def programs(tmp_path_factory):
     }
 
 
-@pytest.mark.parametrize("case", ["reuse", "reload", "address_reuse", "allocation_failure", "regions", "stale_overlap", "changed_bytes",
+@pytest.mark.parametrize("case", ["reuse", "reload", "address_reuse", "allocation_failure", "regions", "stale_overlap", "changed_bytes", "stale_cover", "partial_overwrite",
                                   "disabled"])
 def test_static_geometry(programs, case):
     result = subprocess.run([str(programs["static"]), case], capture_output=True, text=True, timeout=15, check=False)

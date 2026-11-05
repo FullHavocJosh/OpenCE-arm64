@@ -327,6 +327,52 @@ static int changed_bytes(void)
 	return 0;
 }
 
+static int stale_cover(void)
+{
+	struct resource old_range = { 0, 0x40000, 0 }, new_range = { 0, 0x48000, 0 };
+	GLuint buffer;
+	unsigned long offset, serial;
+
+	/* (a bsp's range and a smaller one's, both running to the same end: the
+	older map's is not a cover for the newer one's) */
+	fill(window + 0x40000, 0x10000, 21);
+	xgpu_static_buffer_add(&old_range, 0x10000, 0);
+	CHECK(static_buffer_range((unsigned long)window + 0x40100, 0x40, FALSE, &buffer, &offset, &serial));
+	static_buffers_verify(5);
+	fill(window + 0x48000, 0x8000, 22);
+	xgpu_static_buffer_add(&new_range, 0x8000, 0);
+	CHECK(static_buffer_lists[0].count == 1 && static_buffer_lists[0].entries[0].start == (unsigned long)window + 0x48000);
+	CHECK(draw_reads((unsigned long)window + 0x48100, 0x40, FALSE));
+	CHECK(!draw_reads((unsigned long)window + 0x40100, 0x40, FALSE));
+	return 0;
+}
+
+static int partial_overwrite(void)
+{
+	struct resource range = { 0, 0x50000, 0 };
+	GLuint buffer;
+	unsigned long offset, serial;
+	int pass;
+
+	/* (a smaller map's bytes over the first third of a larger one's range) */
+	fill(window + 0x50000, 0x9000, 31);
+	xgpu_static_buffer_add(&range, 0x9000, 0);
+	CHECK(static_buffer_range((unsigned long)window + 0x50000, 0x9000, FALSE, &buffer, &offset, &serial));
+	fill(window + 0x50000, 0x3000, 32);
+	static_buffers_verify(7);
+	CHECK(static_buffers.doomed_count == 1);
+	CHECK(draw_reads((unsigned long)window + 0x50100, 0x40, FALSE));
+	/* (changed again and again: no more buffers for it, it streams) */
+	for (pass = 0; pass < 6; pass++)
+	{
+		fill(window + 0x50000, 0x9000, (unsigned char)(40 + pass));
+		static_buffers_verify(10 + (unsigned long)pass);
+		draw_reads((unsigned long)window + 0x50100, 0x40, FALSE);
+	}
+	CHECK(!draw_reads((unsigned long)window + 0x50100, 0x40, FALSE));
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	if (argc != 2)
@@ -360,5 +406,9 @@ int main(int argc, char **argv)
 		return stale_overlap();
 	if (!strcmp(argv[1], "changed_bytes"))
 		return changed_bytes();
+	if (!strcmp(argv[1], "stale_cover"))
+		return stale_cover();
+	if (!strcmp(argv[1], "partial_overwrite"))
+		return partial_overwrite();
 	return 2;
 }
