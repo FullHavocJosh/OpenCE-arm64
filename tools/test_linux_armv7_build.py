@@ -9,6 +9,7 @@ Needs no toolchain and no downloads.
 """
 
 import io
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -113,6 +114,23 @@ def test_armv7_graph():
     assert "-DHALO_GLES=1" in text
     assert "i686" not in text
     assert "-m32" not in text
+
+
+def test_armv7_links_the_tag_cache_window():
+    text = graph(linux_arch="armv7")
+    assert "-Wl,-T,tools/linux_armv7_tag_cache.ld" in text
+    # (and an input of the link, so that a changed script relinks)
+    assert "tools/linux_link_check.py tools/linux_armv7_tag_cache.ld" in text
+    assert "tag_cache.ld" not in graph()
+
+
+def test_tag_cache_script_matches_the_window():
+    header = (ROOT / "port" / "linux" / "game" / "cache_file_formats.h").read_text()
+    address = int(re.search(r"CUSTOM_EDITION_TAG_CACHE_ADDRESS (0x[0-9A-Fa-f]+)", header).group(1), 16)
+    size = int(re.search(r"CUSTOM_EDITION_TAG_CACHE_BYTES (0x[0-9A-Fa-f]+)", header).group(1), 16)
+    script = (ROOT / "tools" / "linux_armv7_tag_cache.ld").read_text()
+    assert f".ce_tag_cache 0x{address:08x} (NOLOAD)" in script
+    assert f". += 0x{size:x};" in script
 
 
 def test_armv7_outputs_and_target():
