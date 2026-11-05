@@ -204,14 +204,15 @@ The armv7 AppImage is for 32-bit ARM systems. A 64-bit ARM computer can run
 32-bit programs only if its CPU has the 32-bit mode (a Snapdragon 8 Gen 2 has
 it on its Cortex-A510 and A710 cores; `/sys/devices/system/cpu/aarch32_el0`
 lists them) and has 32-bit libraries (glibc, SDL3, Mesa), which many 64-bit
-distributions do not ship. The AppImage's own runtime, from the AppImage
-project, is built for ARMv6 and uses the old ARMv6 memory barrier
-(`mcr p15, 0, r0, c7, c10, 5`). A 64-bit kernel runs that only with its
-CP15 barrier emulation (`/proc/sys/abi/cp15_barrier`); without it the
-AppImage stops with "Illegal instruction" before the game starts, as on the
-Retroid Pocket Nova. The game's executable itself is ARMv7 and has no such
-instruction: refer to [port/linux-armv7](../linux-armv7/README.md) for running
-it from an armhf root.
+distributions do not ship: the Retroid Pocket Nova's Armada has none, so the
+AppImage runs there in an armhf container ([port/linux-armv7](../linux-armv7/README.md)).
+
+The AppImage's runtime is built from the AppImage project's source for
+ARMv7. The runtime that the project publishes for armhf is built for ARMv6
+and uses the old ARMv6 memory barrier (`mcr p15, 0, r0, c7, c10, 5`), which a
+64-bit kernel runs only with its CP15 barrier emulation
+(`/proc/sys/abi/cp15_barrier`): without it that AppImage stops with "Illegal
+instruction" before the game starts, as it did on the Retroid Pocket Nova.
 
 The game data is the same as for the zip: the folder that contains `maps/`,
 which the packages look for in `~/.local/share/halo` (refer to "Start the
@@ -304,10 +305,10 @@ The packages were started on a Steam Deck OLED (SteamOS 3.9.5; the x86_64
 AppImage and Flatpak), a Retroid Pocket Nova (Armada; the arm64 AppImage and
 Flatpak) and a laptop with a Ryzen 9 7940HS (Nobara 44; the x86_64 AppImage
 and Flatpak), each for 30 seconds to the menus; the laptop's NVIDIA GPU too,
-as above. The armv7 game was started on the Retroid Pocket's own CPU
-(32-bit mode, an armhf Debian container; not the AppImage, whose runtime
-stops there) with Wayland and the Adreno GPU, and under qemu-user. The
-armv7 AppImage itself has not run on any computer.
+as above. The armv7 AppImage was run on the Retroid Pocket's own CPU (32-bit
+mode, in an armhf Debian container) with Wayland and the Adreno GPU, to the
+menus, and CI starts it under qemu-user. It has not run on a 32-bit ARM
+computer.
 
 ### Checks in CI
 
@@ -320,6 +321,11 @@ and not for a user (`tools/ci_smoke.py`, `tools/check_glibc.py`):
   qemu-user).
 - The glibc that each AppImage's files need must not be newer than the table
   above says.
+- Each AppImage is started itself (x86_64 in a 32-bit x86 container, armv7 in
+  an armhf container under qemu-user, arm64 on an arm64 runner): its runtime
+  unpacks it, `AppRun` starts the game, which finds its bundled libraries.
+- The armv7 runtime is checked to be ARMv7 code without the ARMv6 memory
+  barrier, and to start.
 - Each Flatpak is installed and its program run in the sandbox (`ldd`): the
   loader, the extension mount points and the libraries are there.
 - A release is not published without all five packages.

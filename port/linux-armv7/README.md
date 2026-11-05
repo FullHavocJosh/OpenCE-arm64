@@ -56,9 +56,14 @@ window as a segment of its own, which the kernel maps before the loader runs
 `halo-linux-armv7.AppImage` is built by the Linux packages workflow, in the
 releases. There is no Flatpak: its runtime has no 32-bit ARM version. The
 AppImage needs glibc 2.38 or later and a 32-bit ARM system; refer to
-[port/linux/README.md](../linux/README.md#appimage-and-flatpak-packages) for
-the AppImage's runtime, which is built for ARMv6 and does not start on a 64-bit
-kernel without CP15 barrier emulation.
+[port/linux/README.md](../linux/README.md#appimage-and-flatpak-packages).
+
+Its runtime is built in CI from the AppImage project's source (a pinned
+commit, `runtime-armv7` in the workflow) in Alpine's ARMv7 container. The
+runtime that the project publishes is ARMv6 code with the ARMv6 memory barrier
+(`mcr p15, 0, r0, c7, c10, 5`), which a 64-bit kernel without CP15 barrier
+emulation traps, so that AppImage stopped before the game started. The job
+checks that the runtime is ARMv7 and has none of that barrier.
 
 To run the game on a 64-bit ARM computer that has the 32-bit mode but no armhf
 libraries, use an armhf root: for example a Debian 13 armhf container
@@ -82,8 +87,8 @@ needs XWayland).
   armhf container, with Wayland and the Adreno GPU: OpenGL ES 3.2 and the
   menus) and under qemu-user; not on a CPU that is 32-bit only (a Raspberry
   Pi 3 or 4 with a 32-bit system, for example).
-- The AppImage's runtime does not start on a 64-bit kernel without CP15
-  barrier emulation ("Packages").
+- The AppImage ran on a 64-bit ARM CPU in its 32-bit mode (in an armhf
+  container) and under qemu-user, not on a 32-bit ARM computer.
 - The game needs a GPU with OpenGL ES 3.0 or later.
 - Custom Edition maps are not tested on this build.
 
