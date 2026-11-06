@@ -615,6 +615,19 @@ static int list_current(unsigned long generation)
 	return list.browsing && list.generation == generation;
 }
 
+/* (debug.frame_log: when this thread asks a master, with the time the frame
+log has, to line a hitch up with it) */
+static void log_time(const char *what)
+{
+	struct timespec now;
+
+	if (!config_boolean("debug.frame_log"))
+		return;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	platform_log("frame log: t=%lu.%03lu server browser %s", (unsigned long)now.tv_sec,
+		(unsigned long)(now.tv_nsec / 1000000), what);
+}
+
 static void *list_thread_main(void *argument)
 {
 	unsigned long generation = (unsigned long)(uintptr_t)argument;
@@ -644,6 +657,7 @@ static void *list_thread_main(void *argument)
 
 			memset(&fetched, 0, sizeof(fetched));
 			snprintf(url, sizeof(url), "%s/v1/servers", urls[index]);
+			log_time("asks a master");
 			if (!fetch(url, &fetched))
 			{
 				platform_log("server browser: no answer from %s", urls[index]);
@@ -669,6 +683,7 @@ static void *list_thread_main(void *argument)
 				platform_log("server browser: %s lists %d server%s", urls[index], taken, taken == 1 ? "" : "s");
 			}
 			free(fetched.body);
+			log_time("is done with a master");
 			pthread_mutex_lock(&list.lock);
 			list.asked++;
 			list.answered = answered;

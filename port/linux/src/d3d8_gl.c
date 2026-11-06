@@ -1230,6 +1230,8 @@ static struct
 	const char *skip_vertex_shaders;
 	const char *dump_shaders;
 	BOOL statistics;
+	/* debug.frame_log: the time of each frame that was slow (frame_log_present) */
+	BOOL frame_log;
 } debug_settings;
 
 #ifndef HALO_GLES
@@ -2590,6 +2592,7 @@ static void gl_initialize(void)
 	debug_settings.dump_shaders = *config_string("debug.gpu_dump_shaders") ?
 		config_string("debug.gpu_dump_shaders") : NULL;
 	debug_settings.statistics = config_boolean("debug.gpu_stats");
+	debug_settings.frame_log = config_boolean("debug.frame_log");
 #ifndef HALO_GLES
 	program_cache_initialize();
 	frame_pacing.limit = config_integer("display.frames_in_flight");
@@ -7941,6 +7944,118 @@ static void frame_pacing_wait(void)
 }
 #endif
 
+/* ---------- frame time log (debug.frame_log)
+
+For finding what makes a game stutter: each frame that took over one and a
+half times as long as the frames before it (and over 11 ms) is logged with the
+time, in seconds of the monotonic clock (the server browser's lines have it
+too, to line them up), and how its time went: the game's work and the drawing
+before the swap, the swap itself (the display's wait: a refresh missed shows
+there), and what follows it (the fences). A summary comes every 10 seconds. */
+
+#define FRAME_LOG_BUCKETS 6
+#define FRAME_LOG_HITCH_MICROSECONDS 11000
+#define FRAME_LOG_LINES_A_SECOND 30
+
+static struct
+{
+	long long last;
+	long long before_swap;
+	long long after_swap;
+	/* microseconds, a running average of the frames' */
+	long long average;
+	long long window_start;
+	long long second;
+	unsigned long second_lines;
+	unsigned long window_frames;
+	unsigned long buckets[FRAME_LOG_BUCKETS];
+	unsigned long hitches;
+	unsigned long worst;
+} frame_log;
+
+static long long frame_log_now(void)
+{
+	struct timespec now;
+
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	return (long long)now.tv_sec * 1000000000LL + now.tv_nsec;
+}
+
+static void frame_log_swap_begin(void)
+{
+	if (debug_settings.frame_log)
+		frame_log.before_swap = frame_log_now();
+}
+
+static void frame_log_swap_end(void)
+{
+	if (debug_settings.frame_log)
+		frame_log.after_swap = frame_log_now();
+}
+
+#define FRAME_LOG_SECONDS(now) (unsigned long)((now) / 1000000000LL), (unsigned long)(((now) / 1000000LL) % 1000)
+#define FRAME_LOG_MS(us) (unsigned long)((us) / 1000), (unsigned long)((us) % 1000)
+
+static void frame_log_present(unsigned long frame)
+{
+	static const unsigned long edges[FRAME_LOG_BUCKETS - 1] = { 9000, 12000, 17000, 25000, 50000 };
+	long long now, interval, game, swap, after;
+	unsigned long bucket;
+
+	if (!debug_settings.frame_log)
+		return;
+	now = frame_log_now();
+	if (!frame_log.window_start)
+		frame_log.window_start = now;
+	if (frame_log.last)
+	{
+		interval = (now - frame_log.last) / 1000;
+		game = (frame_log.before_swap - frame_log.last) / 1000;
+		swap = (frame_log.after_swap - frame_log.before_swap) / 1000;
+		after = (now - frame_log.after_swap) / 1000;
+		for (bucket = 0; bucket < FRAME_LOG_BUCKETS - 1 && (unsigned long)interval > edges[bucket]; bucket++)
+			;
+		frame_log.buckets[bucket]++;
+		frame_log.window_frames++;
+		if ((unsigned long)interval > frame_log.worst)
+			frame_log.worst = (unsigned long)interval;
+		if (frame_log.average && interval > frame_log.average * 3 / 2 && interval > FRAME_LOG_HITCH_MICROSECONDS)
+		{
+			frame_log.hitches++;
+			if (now - frame_log.second >= 1000000000LL)
+			{
+				frame_log.second = now;
+				frame_log.second_lines = 0;
+			}
+			if (frame_log.second_lines++ < FRAME_LOG_LINES_A_SECOND)
+			{
+				platform_log("frame log: t=%lu.%03lu frame=%lu interval=%lu.%03lu ms (game %lu.%03lu, swap %lu.%03lu, "
+					"after %lu.%03lu)", FRAME_LOG_SECONDS(now), frame, FRAME_LOG_MS(interval), FRAME_LOG_MS(game),
+					FRAME_LOG_MS(swap), FRAME_LOG_MS(after));
+			}
+		}
+		frame_log.average = frame_log.average ? frame_log.average + (interval - frame_log.average) / 32 : interval;
+	}
+	if (now - frame_log.window_start >= 10000000000LL)
+	{
+		long long elapsed = (now - frame_log.window_start) / 1000000LL;
+
+		platform_log("frame log: t=%lu.%03lu summary: %lu frames in %lu ms (%lu fps); frames up to 9 ms %lu, 12 ms %lu, "
+			"17 ms %lu, 25 ms %lu, 50 ms %lu, over %lu; %lu hitches, the slowest frame %lu.%03lu ms",
+			FRAME_LOG_SECONDS(now), frame_log.window_frames, (unsigned long)elapsed,
+			elapsed ? (unsigned long)((long long)frame_log.window_frames * 1000 / elapsed) : 0UL,
+			frame_log.buckets[0], frame_log.buckets[1], frame_log.buckets[2], frame_log.buckets[3], frame_log.buckets[4],
+			frame_log.buckets[5], frame_log.hitches, FRAME_LOG_MS((long long)frame_log.worst));
+		frame_log.window_start = now;
+		frame_log.window_frames = 0;
+		frame_log.hitches = 0;
+		frame_log.worst = 0;
+		memset(frame_log.buckets, 0, sizeof(frame_log.buckets));
+	}
+	frame_log.last = now;
+}
+/* ---------- end of the frame time log */
+
 void WINAPI D3DDevice_Present(CONST RECT *source_rectangle, CONST RECT *destination_rectangle,
 	void *unused, void *unused2)
 {
@@ -8014,7 +8129,9 @@ void WINAPI D3DDevice_Present(CONST RECT *source_rectangle, CONST RECT *destinat
 		}
 		glBindVertexArray(device.vertex_array);
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+		frame_log_swap_begin();
 		platform_video_swap();
+		frame_log_swap_end();
 #ifndef HALO_GLES
 		frame_pacing_wait();
 		visibility_read_batch();
@@ -8073,6 +8190,7 @@ void WINAPI D3DDevice_Present(CONST RECT *source_rectangle, CONST RECT *destinat
 	}
 	device.frame++;
 	stats.presents++;
+	frame_log_present(device.frame);
 	if (debug_settings.statistics)
 	{
 		static struct timespec last_present;
