@@ -1217,6 +1217,8 @@ static struct
 	const char *skip_vertex_shaders;
 	const char *dump_shaders;
 	BOOL statistics;
+	/* debug.frame_log: the time of each frame that was slow (frame_log_present) */
+	BOOL frame_log;
 } debug_settings;
 
 #ifndef HALO_GLES
@@ -2577,6 +2579,7 @@ static void gl_initialize(void)
 	debug_settings.dump_shaders = *config_string("debug.gpu_dump_shaders") ?
 		config_string("debug.gpu_dump_shaders") : NULL;
 	debug_settings.statistics = config_boolean("debug.gpu_stats");
+	debug_settings.frame_log = config_boolean("debug.frame_log");
 #ifndef HALO_GLES
 	program_cache_initialize();
 	frame_pacing.limit = config_integer("display.frames_in_flight");
@@ -5592,6 +5595,10 @@ draw can read a buffer while it changes:
 An entry goes when the game releases or unloads it; its GL buffer is
 deleted at the next Present. */
 
+#define STATIC_SAMPLES 128
+/* (a registration or release of at least this many bytes is logged: a map's) */
+#define STATIC_LOG_SIZE 0x40000
+
 struct static_buffer
 {
 	unsigned long start;
@@ -5602,6 +5609,14 @@ struct static_buffer
 	BOOL failed;
 	/* (a value of its own, for index_extent's cache of this range) */
 	unsigned long serial;
+	/* words of the range's memory as the buffer was filled, to tell a later
+	map's bytes in the same place (static_buffers_verify) */
+	unsigned long sample_count;
+	unsigned long samples[STATIC_SAMPLES];
+	/* the frame it was registered in, and how often its buffer has been made
+	again because the memory changed under it */
+	unsigned long frame;
+	unsigned long retired;
 };
 
 /* sorted by start, one list of vertices (0) and one of indices (1); the
@@ -5616,6 +5631,8 @@ static struct static_buffer_list
 static struct
 {
 	unsigned long serial;
+	unsigned long frame;
+	unsigned long reports;
 	GLuint *doomed;
 	unsigned long doomed_count;
 	unsigned long doomed_capacity;
@@ -5649,33 +5666,46 @@ static unsigned long static_buffer_start(const void *resource, BOOL indices)
 	return indices ? (unsigned long)data : (unsigned long)PLATFORM_PHYSICAL_TO_VIRTUAL(data);
 }
 
-static void static_buffer_forget(struct static_buffer_list *list, unsigned long start)
+/* an entry's GL buffer, deleted at the next Present (from the thread that draws) */
+static void static_buffer_doom(struct static_buffer *entry)
+{
+	if (!entry->buffer)
+		return;
+	if (static_buffers.doomed_count == static_buffers.doomed_capacity)
+	{
+		unsigned long capacity = static_buffers.doomed_capacity ? static_buffers.doomed_capacity * 2 : 64;
+		GLuint *doomed = realloc(static_buffers.doomed, capacity * sizeof(*doomed));
+
+		if (doomed)
+		{
+			static_buffers.doomed = doomed;
+			static_buffers.doomed_capacity = capacity;
+		}
+	}
+	if (static_buffers.doomed_count < static_buffers.doomed_capacity)
+		static_buffers.doomed[static_buffers.doomed_count++] = entry->buffer;
+	entry->buffer = 0;
+}
+
+/* BOOL: an entry was there */
+static BOOL static_buffer_forget(struct static_buffer_list *list, unsigned long start)
 {
 	unsigned long index = static_buffer_upper(list, start);
 	struct static_buffer *entry;
 
 	if (!index || list->entries[index - 1].start != start)
-		return;
+		return FALSE;
 	entry = &list->entries[index - 1];
-	if (entry->buffer)
+	if (debug_settings.statistics && entry->size >= STATIC_LOG_SIZE)
 	{
-		/* (deleted at Present, from the thread that draws) */
-		if (static_buffers.doomed_count == static_buffers.doomed_capacity)
-		{
-			unsigned long capacity = static_buffers.doomed_capacity ? static_buffers.doomed_capacity * 2 : 64;
-			GLuint *doomed = realloc(static_buffers.doomed, capacity * sizeof(*doomed));
-
-			if (doomed)
-			{
-				static_buffers.doomed = doomed;
-				static_buffers.doomed_capacity = capacity;
-			}
-		}
-		if (static_buffers.doomed_count < static_buffers.doomed_capacity)
-			static_buffers.doomed[static_buffers.doomed_count++] = entry->buffer;
+		platform_log("GPU: static %s range %08lx+%lu released (frame %lu, %lu left)",
+			list == &static_buffer_lists[1] ? "index" : "vertex", entry->start, entry->size, static_buffers.frame,
+			list->count - 1);
 	}
+	static_buffer_doom(entry);
 	memmove(entry, entry + 1, (list->count - index) * sizeof(*entry));
 	list->count--;
+	return TRUE;
 }
 
 static void static_buffer_note(struct static_buffer_list *list, unsigned long start, unsigned long size)
@@ -5688,16 +5718,32 @@ static void static_buffer_note(struct static_buffer_list *list, unsigned long st
 	static_buffer_forget(list, start);
 	index = static_buffer_upper(list, start);
 	/* (a bsp's vertices and lightmap vertices both run to its end: the one
-	that starts lower covers the other) */
-	if (index && list->entries[index - 1].start + list->entries[index - 1].size == start + size)
-		return;
-	if (index < list->count && list->entries[index].start + list->entries[index].size == start + size)
-		static_buffer_forget(list, list->entries[index].start);
-	/* (a range that would overlap another is left to stream) */
-	if ((index && list->entries[index - 1].start + list->entries[index - 1].size > start) ||
-		(index < list->count && start + size > list->entries[index].start))
+	that starts lower covers the other. Both are registered in one load: a
+	range of an earlier frame that runs to the same end is the last map's, and
+	its bytes are gone) */
+	if (index && list->entries[index - 1].start + list->entries[index - 1].size == start + size &&
+		list->entries[index - 1].frame == static_buffers.frame)
 	{
 		return;
+	}
+	if (index < list->count && list->entries[index].start + list->entries[index].size == start + size)
+		static_buffer_forget(list, list->entries[index].start);
+	/* (a range that overlaps another: the loader says this memory holds new
+	bytes now, so the other, whose buffer has old ones, goes: left in place,
+	draws inside it would read the old map's geometry) */
+	while ((index && list->entries[index - 1].start + list->entries[index - 1].size > start) ||
+		(index < list->count && start + size > list->entries[index].start))
+	{
+		unsigned long other = (index && list->entries[index - 1].start + list->entries[index - 1].size > start) ?
+			list->entries[index - 1].start : list->entries[index].start;
+
+		if (debug_settings.statistics)
+		{
+			platform_log("GPU: static %s range %08lx+%lu replaces an older one at %08lx (frame %lu)",
+				list == &static_buffer_lists[1] ? "index" : "vertex", start, size, other, static_buffers.frame);
+		}
+		static_buffer_forget(list, other);
+		index = static_buffer_upper(list, start);
 	}
 	if (list->count == list->capacity)
 	{
@@ -5717,6 +5763,14 @@ static void static_buffer_note(struct static_buffer_list *list, unsigned long st
 	entry->buffer = 0;
 	entry->failed = FALSE;
 	entry->serial = ++static_buffers.serial;
+	entry->sample_count = 0;
+	entry->frame = static_buffers.frame;
+	entry->retired = 0;
+	if (debug_settings.statistics && size >= STATIC_LOG_SIZE)
+	{
+		platform_log("GPU: static %s range %08lx+%lu registered (frame %lu, %lu in the list)",
+			list == &static_buffer_lists[1] ? "index" : "vertex", start, size, static_buffers.frame, list->count);
+	}
 }
 
 void xgpu_static_buffer_add(const void *resource, unsigned long size, int indices)
@@ -5759,8 +5813,12 @@ void xgpu_static_buffers_remove(const void *buffers, long count, unsigned long s
 {
 	unsigned long first = static_buffers_first(buffers, count, stride, indices != 0);
 
-	if (first)
-		static_buffer_forget(&static_buffer_lists[indices != 0], first);
+	if (first && !static_buffer_forget(&static_buffer_lists[indices != 0], first) && count > 1 && debug_settings.statistics)
+	{
+		/* (its range was covered by another's, or is not the one registered) */
+		platform_log("GPU: no static %s range starts at %08lx to release (frame %lu)", indices ? "index" : "vertex",
+			first, static_buffers.frame);
+	}
 }
 
 void xgpu_static_range_add(const void *start, unsigned long size, int indices)
@@ -5782,6 +5840,76 @@ static void static_buffers_collect(void)
 	glDeleteBuffers((GLsizei)static_buffers.doomed_count, static_buffers.doomed);
 	static_buffers.doomed_count = 0;
 	xgpu_gl_state_invalidate();
+}
+
+/* up to STATIC_SAMPLES words of the entry's memory, spread over all of it */
+static unsigned long static_buffer_sample(const struct static_buffer *entry, unsigned long *words)
+{
+	unsigned long total = entry->size / sizeof(unsigned long);
+	unsigned long count = total < STATIC_SAMPLES ? total : STATIC_SAMPLES;
+	unsigned long step = count ? total / count : 0;
+	unsigned long index;
+
+	for (index = 0; index < count; index++)
+		memcpy(&words[index], (const unsigned char *)entry->start + index * step * sizeof(unsigned long), sizeof(unsigned long));
+	return count;
+}
+
+/* Once a frame, before the swap: a range whose memory no longer holds what its
+buffer was filled with (more than a sixteenth of the words sampled differ: a
+smaller map's bytes cover only the start of a larger one's range) is a map's
+bytes replaced by another's with the range still registered: its buffer goes,
+and the next draw fills one from the memory as it is now. A range that keeps
+changing is left to stream. A few words changed is data the game writes; they
+are noted and left. */
+static void static_buffers_verify(unsigned long frame)
+{
+	unsigned long kind, index, word, count, changed;
+	unsigned long words[STATIC_SAMPLES];
+
+	static_buffers.frame = frame;
+	for (kind = 0; kind < 2; kind++)
+	{
+		struct static_buffer_list *list = &static_buffer_lists[kind];
+
+		for (index = 0; index < list->count; index++)
+		{
+			struct static_buffer *entry = &list->entries[index];
+
+			if (!entry->buffer || !entry->sample_count)
+				continue;
+			count = static_buffer_sample(entry, words);
+			for (word = 0, changed = 0; word < count; word++)
+			{
+				if (words[word] != entry->samples[word])
+					changed++;
+			}
+			if (!changed)
+				continue;
+			if (changed * 16 > count)
+			{
+				if (debug_settings.statistics)
+				{
+					platform_log("GPU: static %s range %08lx+%lu holds other bytes than its buffer (%lu of %lu words): "
+						"uploaded again (frame %lu)", kind ? "index" : "vertex", entry->start, entry->size, changed,
+						count, frame);
+				}
+				static_buffer_doom(entry);
+				entry->sample_count = 0;
+				entry->failed = ++entry->retired > 3;
+				entry->serial = ++static_buffers.serial;
+			}
+			else
+			{
+				if (debug_settings.statistics && static_buffers.reports++ < 40)
+				{
+					platform_log("GPU: static %s range %08lx+%lu changed in %lu of %lu sampled words (frame %lu)",
+						kind ? "index" : "vertex", entry->start, entry->size, changed, count, frame);
+				}
+				memcpy(entry->samples, words, count * sizeof(unsigned long));
+			}
+		}
+	}
 }
 
 /* as mirror_range, for [address, address + size) inside one static range
@@ -5836,6 +5964,7 @@ static BOOL static_buffer_range(unsigned long address, unsigned long size, BOOL 
 			xgpu_gl_state_invalidate();
 			return FALSE;
 		}
+		entry->sample_count = static_buffer_sample(entry, entry->samples);
 	}
 	*buffer = entry->buffer;
 	*offset = address - entry->start;
@@ -7762,6 +7891,118 @@ static void frame_pacing_wait(void)
 }
 #endif
 
+/* ---------- frame time log (debug.frame_log)
+
+For finding what makes a game stutter: each frame that took over one and a
+half times as long as the frames before it (and over 11 ms) is logged with the
+time, in seconds of the monotonic clock (the server browser's lines have it
+too, to line them up), and how its time went: the game's work and the drawing
+before the swap, the swap itself (the display's wait: a refresh missed shows
+there), and what follows it (the fences). A summary comes every 10 seconds. */
+
+#define FRAME_LOG_BUCKETS 6
+#define FRAME_LOG_HITCH_MICROSECONDS 11000
+#define FRAME_LOG_LINES_A_SECOND 30
+
+static struct
+{
+	long long last;
+	long long before_swap;
+	long long after_swap;
+	/* microseconds, a running average of the frames' */
+	long long average;
+	long long window_start;
+	long long second;
+	unsigned long second_lines;
+	unsigned long window_frames;
+	unsigned long buckets[FRAME_LOG_BUCKETS];
+	unsigned long hitches;
+	unsigned long worst;
+} frame_log;
+
+static long long frame_log_now(void)
+{
+	struct timespec now;
+
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	return (long long)now.tv_sec * 1000000000LL + now.tv_nsec;
+}
+
+static void frame_log_swap_begin(void)
+{
+	if (debug_settings.frame_log)
+		frame_log.before_swap = frame_log_now();
+}
+
+static void frame_log_swap_end(void)
+{
+	if (debug_settings.frame_log)
+		frame_log.after_swap = frame_log_now();
+}
+
+#define FRAME_LOG_SECONDS(now) (unsigned long)((now) / 1000000000LL), (unsigned long)(((now) / 1000000LL) % 1000)
+#define FRAME_LOG_MS(us) (unsigned long)((us) / 1000), (unsigned long)((us) % 1000)
+
+static void frame_log_present(unsigned long frame)
+{
+	static const unsigned long edges[FRAME_LOG_BUCKETS - 1] = { 9000, 12000, 17000, 25000, 50000 };
+	long long now, interval, game, swap, after;
+	unsigned long bucket;
+
+	if (!debug_settings.frame_log)
+		return;
+	now = frame_log_now();
+	if (!frame_log.window_start)
+		frame_log.window_start = now;
+	if (frame_log.last)
+	{
+		interval = (now - frame_log.last) / 1000;
+		game = (frame_log.before_swap - frame_log.last) / 1000;
+		swap = (frame_log.after_swap - frame_log.before_swap) / 1000;
+		after = (now - frame_log.after_swap) / 1000;
+		for (bucket = 0; bucket < FRAME_LOG_BUCKETS - 1 && (unsigned long)interval > edges[bucket]; bucket++)
+			;
+		frame_log.buckets[bucket]++;
+		frame_log.window_frames++;
+		if ((unsigned long)interval > frame_log.worst)
+			frame_log.worst = (unsigned long)interval;
+		if (frame_log.average && interval > frame_log.average * 3 / 2 && interval > FRAME_LOG_HITCH_MICROSECONDS)
+		{
+			frame_log.hitches++;
+			if (now - frame_log.second >= 1000000000LL)
+			{
+				frame_log.second = now;
+				frame_log.second_lines = 0;
+			}
+			if (frame_log.second_lines++ < FRAME_LOG_LINES_A_SECOND)
+			{
+				platform_log("frame log: t=%lu.%03lu frame=%lu interval=%lu.%03lu ms (game %lu.%03lu, swap %lu.%03lu, "
+					"after %lu.%03lu)", FRAME_LOG_SECONDS(now), frame, FRAME_LOG_MS(interval), FRAME_LOG_MS(game),
+					FRAME_LOG_MS(swap), FRAME_LOG_MS(after));
+			}
+		}
+		frame_log.average = frame_log.average ? frame_log.average + (interval - frame_log.average) / 32 : interval;
+	}
+	if (now - frame_log.window_start >= 10000000000LL)
+	{
+		long long elapsed = (now - frame_log.window_start) / 1000000LL;
+
+		platform_log("frame log: t=%lu.%03lu summary: %lu frames in %lu ms (%lu fps); frames up to 9 ms %lu, 12 ms %lu, "
+			"17 ms %lu, 25 ms %lu, 50 ms %lu, over %lu; %lu hitches, the slowest frame %lu.%03lu ms",
+			FRAME_LOG_SECONDS(now), frame_log.window_frames, (unsigned long)elapsed,
+			elapsed ? (unsigned long)((long long)frame_log.window_frames * 1000 / elapsed) : 0UL,
+			frame_log.buckets[0], frame_log.buckets[1], frame_log.buckets[2], frame_log.buckets[3], frame_log.buckets[4],
+			frame_log.buckets[5], frame_log.hitches, FRAME_LOG_MS((long long)frame_log.worst));
+		frame_log.window_start = now;
+		frame_log.window_frames = 0;
+		frame_log.hitches = 0;
+		frame_log.worst = 0;
+		memset(frame_log.buckets, 0, sizeof(frame_log.buckets));
+	}
+	frame_log.last = now;
+}
+/* ---------- end of the frame time log */
+
 void WINAPI D3DDevice_Present(CONST RECT *source_rectangle, CONST RECT *destination_rectangle,
 	void *unused, void *unused2)
 {
@@ -7835,7 +8076,9 @@ void WINAPI D3DDevice_Present(CONST RECT *source_rectangle, CONST RECT *destinat
 		}
 		glBindVertexArray(device.vertex_array);
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+		frame_log_swap_begin();
 		platform_video_swap();
+		frame_log_swap_end();
 #ifndef HALO_GLES
 		frame_pacing_wait();
 		visibility_read_batch();
@@ -7858,6 +8101,7 @@ void WINAPI D3DDevice_Present(CONST RECT *source_rectangle, CONST RECT *destinat
 			glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
 		}
 #ifdef HALO_ANDROID
+		static_buffers_verify(device.frame);
 		static_buffers_collect();
 #endif
 		host_gl_fence_frame((unsigned int)device.buffer_ring);
@@ -7891,6 +8135,7 @@ void WINAPI D3DDevice_Present(CONST RECT *source_rectangle, CONST RECT *destinat
 	}
 	device.frame++;
 	stats.presents++;
+	frame_log_present(device.frame);
 	if (debug_settings.statistics)
 	{
 		static struct timespec last_present;

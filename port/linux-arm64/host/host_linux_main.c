@@ -1,7 +1,8 @@
 /*
 HOST_LINUX_MAIN.C
 
-Entry point of the Linux arm64 port.
+Entry point of the Linux arm64 port: the AArch64 host of an ILP32 guest, built
+from the Android port.
 
 It loads the guest image (the game, built as ILP32 code), gives it an
 environment describing where the game data and saves live, and runs its

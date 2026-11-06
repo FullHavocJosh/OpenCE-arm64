@@ -5,15 +5,19 @@
 
 ## What it is
 
-The game is the same native 32-bit game as the x86 Linux build, compiled for
-armv7-linux-gnueabihf (hard float) with clang and lld. It uses the OpenGL ES
+The game as native 32-bit ARM (AArch32) code, in one process: there is no
+host and guest. It is the same 32-bit game as the x86 Linux build, compiled
+for ARMv7-A with hard-float VFPv3-D16 (`armv7-linux-gnueabihf`, which Debian
+calls armhf and `uname -m` calls `armv7l`) with clang and lld. On a 64-bit
+ARM CPU it runs in the CPU's 32-bit mode (AArch32). It uses the OpenGL ES
 renderer path (`HALO_GLES`) that the Android and web builds already use:
 OpenGL ES 3.2, with a fallback to 3.0, requested from the platform layer.
 SDL3 comes from the system root.
 
-The game's sources and the platform layer (`port/linux/src`) are shared with
-the other Linux builds; refer to [port/linux/README.md](../linux/README.md).
-The crash report records the ARM registers.
+This port is built from the x86 Linux port. The game's sources and the
+platform layer (`port/linux/src`) are shared with the other Linux builds;
+refer to [port/linux/README.md](../linux/README.md). The crash report
+records the ARM registers.
 
 ## Building
 
@@ -41,6 +45,26 @@ armv7 these are the VFP unit's: the rounding mode is RMode in FPSCR, the
 flags are its sticky exception bits. Precision control and exception
 unmasking have no equivalent on ARM; the rest of the MSVC control word is only
 remembered. AArch64 has the same bits in FPCR and FPSR and shares the code.
+
+## Alignment
+
+32-bit ARM loads and stores a single word at any address, but faults (a bus
+error, `SIGBUS`) on a multiple-register load or store, and on a floating-point
+load, at an address that is not a multiple of 4. x86 and AArch64 take those in
+their stride, and the game's data has places where a float or a structure of
+floats sits on a multiple of 2: a byte stream in a tag, or the scripts' stack.
+So on this build:
+
+- the scripts' stack frames start their data on a multiple of 4, and every
+  allocation from it is a multiple of 4 (`hs_stack_frame` and
+  `hs_stack_allocate` in `source/hs/hs_runtime.c`, under `HALO_LINUX_ARMV7`:
+  the other builds keep the Xbox's layout);
+- a compressed animation's keyframes and defaults are read through `memcpy`
+  (`source/models/model_animations.c`).
+
+The crash report of a fault has the program counter and the address:
+`llvm-symbolizer` on the build's `halo` names the function. The game's own
+halt screen lists the call chain as addresses, which it decodes the same way.
 
 ## Custom Edition tag cache
 
@@ -84,9 +108,14 @@ needs XWayland).
 - No `--portable` build.
 - No PGO profile yet, so use `--pgo=off`.
 - Run on a 64-bit ARM CPU in its 32-bit mode (a Snapdragon 8 Gen 2, in an
-  armhf container, with Wayland and the Adreno GPU: OpenGL ES 3.2 and the
-  menus) and under qemu-user; not on a CPU that is 32-bit only (a Raspberry
-  Pi 3 or 4 with a 32-bit system, for example).
+  armhf container, with Wayland and the Adreno GPU: OpenGL ES 3.2) and under
+  qemu-user; not on a CPU that is 32-bit only (a Raspberry Pi 3 or 4 with a
+  32-bit system, for example). A build made in the container loaded and drew
+  all 23 maps (the 10 campaign levels and the 13 multiplayer maps) twice in
+  one run, with no fault; it ran at 88 to 120 frames a second against the
+  arm64 build's 102 to 120 on the same maps, since only the cores with a
+  32-bit mode (the Cortex-A510 and A710 there) can run it. A controller
+  worked in play.
 - The AppImage ran on a 64-bit ARM CPU in its 32-bit mode (in an armhf
   container) and under qemu-user, not on a 32-bit ARM computer.
 - The game needs a GPU with OpenGL ES 3.0 or later.

@@ -5,12 +5,15 @@ Linux and `build/linux-arm64/halo_host` runs it.
 
 ## What it is
 
-The game is the same ILP32 AArch64 guest image that the Android build runs.
-A native host, `halo_host`, loads it and gives it what it needs: the
+An AArch64 host with an ILP32 guest. The guest is the game as ILP32 AArch64
+code (64-bit ARM instructions with the 32-bit pointers the game's data
+needs), the same image that the Android build runs. The host, `halo_host`, is
+a native 64-bit program that loads it and gives it what it needs: the
 system's SDL3 for sound, input and windows, and the system's OpenGL ES for
 graphics.
 
-The host is the code in `host/` here, together with the host sources that
+This port is built from the Android port. The guest image is Android's, and
+the host is the code in `host/` here, together with the host sources that
 the Android build already uses. The game's own sources, and the platform
 layer of the Linux build (`port/linux/src`), are shared with the other
 builds; refer to [port/linux/README.md](../linux/README.md).

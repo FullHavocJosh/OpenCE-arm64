@@ -186,11 +186,11 @@ the video driver yourself.
 Each release (`build-N`, on the GitHub releases page) has the Linux game as
 packages as well as the zip:
 
-| File | Game | Runs on |
-|---|---|---|
-| `halo-linux-x86_64.AppImage`, `halo-linux-x86_64.flatpak` | the 32-bit x86 game (this port) | x86_64 computers, the Steam Deck |
-| `halo-linux-arm64.AppImage`, `halo-linux-arm64.flatpak` | the arm64 host and guest ([port/linux-arm64](../linux-arm64/README.md)) | 64-bit ARM Linux |
-| `halo-linux-armv7.AppImage` | the 32-bit ARM game ([port/linux-armv7](../linux-armv7/README.md)) | 32-bit ARM Linux; no Flatpak |
+| File                                                      | Game                                                                    | Runs on                          |
+| --------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------- |
+| `halo-linux-x86_64.AppImage`, `halo-linux-x86_64.flatpak` | the 32-bit x86 game (this port)                                         | x86_64 computers, the Steam Deck |
+| `halo-linux-arm64.AppImage`, `halo-linux-arm64.flatpak`   | the arm64 host and guest ([port/linux-arm64](../linux-arm64/README.md)) | 64-bit ARM Linux                 |
+| `halo-linux-armv7.AppImage`                               | the 32-bit ARM game ([port/linux-armv7](../linux-armv7/README.md))      | 32-bit ARM Linux; no Flatpak     |
 
 `SHA256SUMS` in the release has the checksum of each file.
 
@@ -199,6 +199,17 @@ There is no armv7 Flatpak because the Flatpak runtime that the packages use
 
 Take the file for the architecture of the computer: `uname -m` says `x86_64`,
 `aarch64` (arm64) or `armv7l`. A computer cannot start the other files.
+
+The names of the two ARM builds:
+
+| Name here | What it is                                                | `uname -m` | Debian, Flatpak | Built from         |
+| --------- | --------------------------------------------------------- | ---------- | --------------- | ------------------ |
+| arm64     | an AArch64 host with an ILP32 guest                       | `aarch64`  | arm64, aarch64  | the Android port   |
+| armv7     | the game as AArch32 code: ARMv7-A, hard float (VFPv3-D16) | `armv7l`   | armhf           | the x86 Linux port |
+
+AArch64 and AArch32 are the 64-bit and 32-bit execution states of an ARM CPU.
+armv7 names the instruction set the 32-bit build needs; a 64-bit CPU runs it
+in its AArch32 state.
 
 The armv7 AppImage is for 32-bit ARM systems. A 64-bit ARM computer can run
 32-bit programs only if its CPU has the 32-bit mode (a Snapdragon 8 Gen 2 has
@@ -227,11 +238,11 @@ game" for the disc image that the game asks for at the first start).
 The AppImage brings its own SDL3 and uses the libraries and the glibc of the
 computer. The oldest glibc that each one needs (measured from the files):
 
-| AppImage | glibc |
-|---|---|
-| x86_64 | 2.29 (32-bit) |
-| arm64 | 2.38 |
-| armv7 | 2.38 (32-bit ARM) |
+| AppImage | glibc             |
+| -------- | ----------------- |
+| x86_64   | 2.29 (32-bit)     |
+| arm64    | 2.38              |
+| armv7    | 2.38 (32-bit ARM) |
 
 The x86_64 AppImage also needs the 32-bit libraries of "Requirements". The
 arm64 AppImage needs the computer's OpenGL ES and EGL libraries
@@ -269,7 +280,8 @@ none:
 Start it with `flatpak run io.github.fullhavocjosh.OpenCE`. The game data
 folder is `~/.local/share/halo` here too (the package may read and write
 only that folder of your home); the saved games and the shader cache are in
-`~/.var/app/io.github.fullhavocjosh.OpenCE/data/halo-linux`.
+`~/.var/app/io.github.fullhavocjosh.OpenCE/data/halo-linux`. The package has
+network access, for multiplayer and the game's other online features.
 
 `GL32.default` has the 32-bit Mesa drivers (AMD, Intel, software OpenGL). To
 draw with an NVIDIA GPU, install the 32-bit extension of the NVIDIA driver
