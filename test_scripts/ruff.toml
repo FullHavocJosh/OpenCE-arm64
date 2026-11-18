@@ -1,0 +1,5 @@
+# Lint settings for these scripts only; the repo has no ruff configuration.
+line-length = 120
+
+[lint]
+select = ["E", "F", "W", "I"]
